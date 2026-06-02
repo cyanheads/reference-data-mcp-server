@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/reference-data-mcp-server",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "mcpName": "io.github.cyanheads/reference-data-mcp-server",
   "description": "Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.",
   "type": "module",
@@ -26,6 +26,7 @@
     "changelog:build": "bun run scripts/build-changelog.ts",
     "changelog:check": "bun run scripts/build-changelog.ts --check",
     "publish-mcp": "mcp-publisher login github -token \"$(security find-generic-password -a \"$USER\" -s mcp-publisher-github-pat -w)\" && mcp-publisher publish",
+    "release:github": "tsx scripts/release-github.ts",
     "test": "bunx vitest run",
     "start:stdio": "MCP_TRANSPORT_TYPE=stdio bun ./dist/index.js",
     "start:http": "MCP_TRANSPORT_TYPE=http bun ./dist/index.js"
@@ -78,7 +79,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@cyanheads/mcp-ts-core": "^0.9.16",
+    "@cyanheads/mcp-ts-core": "^0.9.21",
     "@vvo/tzdb": "^6.198.0",
     "convert-units": "^2.3.4",
     "countries-list": "^3.3.0",
@@ -94,6 +95,6 @@
     "ignore": "^7.0.5",
     "tsc-alias": "^1.8.17",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }

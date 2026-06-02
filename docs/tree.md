@@ -1,9 +1,14 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-05-27 06:40:25
+Generated on: 2026-06-02 14:58:57
 
 ```text
 reference-data-mcp-server/
+├── .claude-plugin/
+│   └── plugin.json
+├── .codex-plugin/
+│   ├── mcp.json
+│   └── plugin.json
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.yml
@@ -24,12 +29,14 @@ reference-data-mcp-server/
 │   ├── build.ts
 │   ├── check-docs-sync.ts
 │   ├── check-framework-antipatterns.ts
+│   ├── check-skill-versions.ts
 │   ├── check-skills-sync.ts
 │   ├── clean.ts
 │   ├── devcheck.ts
 │   ├── lint-mcp.ts
 │   ├── lint-packaging.ts
 │   ├── list-skills.ts
+│   ├── release-github.ts
 │   └── tree.ts
 ├── skills/
 │   ├── add-app-tool/
@@ -56,6 +63,8 @@ reference-data-mcp-server/
 │   │   └── SKILL.md
 │   ├── api-linter/
 │   │   └── SKILL.md
+│   ├── api-mirror/
+│   │   └── SKILL.md
 │   ├── api-services/
 │   │   ├── references/
 │   │   │   ├── graph.md
@@ -74,6 +83,8 @@ reference-data-mcp-server/
 │   │   └── SKILL.md
 │   ├── api-workers/
 │   │   └── SKILL.md
+│   ├── code-simplifier/
+│   │   └── SKILL.md
 │   ├── design-mcp-server/
 │   │   └── SKILL.md
 │   ├── field-test/
@@ -82,7 +93,12 @@ reference-data-mcp-server/
 │   │   └── SKILL.md
 │   ├── maintenance/
 │   │   └── SKILL.md
-│   ├── migrate-mcp-ts-template/
+│   ├── orchestrations/
+│   │   ├── workflows/
+│   │   │   ├── field-test-fix.md
+│   │   │   ├── fix-wrapup-release.md
+│   │   │   ├── greenfield-build.md
+│   │   │   └── maintenance-release.md
 │   │   └── SKILL.md
 │   ├── polish-docs-meta/
 │   │   ├── references/
@@ -149,6 +165,11 @@ reference-data-mcp-server/
 ├── tests/
 │   ├── prompts/
 │   ├── resources/
+│   │   ├── ref-countries.resource.test.ts
+│   │   ├── ref-elements.resource.test.ts
+│   │   └── ref-timezones.resource.test.ts
+│   ├── security/
+│   │   └── injection-and-edge-cases.test.ts
 │   └── tools/
 │       ├── ref-constant-lookup.tool.test.ts
 │       ├── ref-element-lookup.tool.test.ts
