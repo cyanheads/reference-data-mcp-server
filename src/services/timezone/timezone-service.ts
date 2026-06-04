@@ -5,7 +5,6 @@
  */
 
 import type { Context } from '@cyanheads/mcp-ts-core';
-import { invalidParams } from '@cyanheads/mcp-ts-core/errors';
 import { getTimeZones } from '@vvo/tzdb';
 import type { ConversionResult, TimezoneRecord } from './types.js';
 
@@ -280,34 +279,13 @@ export class TimezoneService {
   convert(datetime: string, fromTz: string, toTz: string, ctx: Context): ConversionResult {
     ctx.log.debug('Timezone convert', { datetime, fromTz, toTz });
 
-    // Resolve timezone IDs
+    // Resolve timezone IDs — pre-validated by the handler before delegating here
     const resolvedFrom = this.resolveIanaId(fromTz) ?? fromTz;
     const resolvedTo = this.resolveIanaId(toTz) ?? toTz;
 
-    // Validate timezones
-    if (!this.isValidIana(resolvedFrom)) {
-      throw invalidParams(
-        `Unrecognized source timezone "${fromTz}". Use ref_timezone_lookup to find the correct IANA ID.`,
-        { fromTz },
-      );
-    }
-    if (!this.isValidIana(resolvedTo)) {
-      throw invalidParams(
-        `Unrecognized target timezone "${toTz}". Use ref_timezone_lookup to find the correct IANA ID.`,
-        { toTz },
-      );
-    }
-
     // Parse the input datetime as local time in the source timezone
-    // ISO 8601 local format: "2026-05-24T15:30:00"
-    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
-    if (!match) {
-      throw invalidParams(
-        `Malformed datetime "${datetime}". Use ISO 8601 without timezone offset, e.g., "2026-05-24T15:30:00".`,
-        { datetime },
-      );
-    }
-
+    // ISO 8601 local format: "2026-05-24T15:30:00" — format pre-validated by the handler
+    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/)!;
     const [, year = 0, month = 1, day = 1, hour = 0, minute = 0, second = 0] = match.map(Number);
 
     // Build the UTC timestamp by interpreting the local datetime in the source timezone.
