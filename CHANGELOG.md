@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.9](changelog/0.1.x/0.1.9.md) — 2026-06-04
+
+Fix ref_unit_convert describe examples (mph→m/h, BTU→kJ); remove unreachable validation guards in timezone-service convert().
+
 ## [0.1.8](changelog/0.1.x/0.1.8.md) — 2026-06-02
 
 Adopt @cyanheads/mcp-ts-core ^0.9.21: per-request log context fix, secret-scrubbing in fetchWithTimeout errors, withRetry fail-fast, ctx.fail retryable flag.
