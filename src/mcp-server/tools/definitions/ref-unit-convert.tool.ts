@@ -15,8 +15,8 @@ export const refUnitConvert = tool('ref_unit_convert', {
 
   input: z.object({
     value: z.number().describe('Numeric quantity to convert.'),
-    from: z.string().describe('Source unit abbreviation (e.g., "km", "C", "mph", "kWh", "kg").'),
-    to: z.string().describe('Target unit abbreviation (e.g., "mi", "F", "m/s", "BTU", "lb").'),
+    from: z.string().describe('Source unit abbreviation (e.g., "km", "C", "m/h", "kWh", "kg").'),
+    to: z.string().describe('Target unit abbreviation (e.g., "mi", "F", "m/s", "kJ", "lb").'),
   }),
 
   output: z.object({
@@ -43,7 +43,7 @@ export const refUnitConvert = tool('ref_unit_convert', {
       code: JsonRpcErrorCode.InvalidParams,
       when: 'One or both units are not recognized by the underlying library.',
       recovery:
-        'Use standard unit abbreviations: km, kg, C, F, K, R, mph, kWh, Pa, kPa, J. Check for typos or degree symbols (use "C" not "°C").',
+        'Use standard unit abbreviations: km, kg, C, F, K, R, m/h, kWh, Pa, kPa, J. Check for typos or degree symbols (use "C" not "°C").',
     },
     {
       reason: 'below_absolute_zero',
