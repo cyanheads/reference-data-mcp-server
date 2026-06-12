@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "reference-data-mcp-server",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.",
   "author": {
     "name": "cyanheads"
