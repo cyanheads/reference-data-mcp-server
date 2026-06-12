@@ -56,13 +56,13 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
   errors: [
     {
       reason: 'invalid_timezone',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'Source or target timezone ID is unrecognized.',
       recovery: 'Use ref_timezone_lookup to find the correct IANA ID for the desired location.',
     },
     {
       reason: 'invalid_datetime',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'Datetime string is malformed or contains a timezone offset.',
       recovery: 'Use ISO 8601 without any timezone offset, e.g., "2026-05-24T15:30:00".',
     },

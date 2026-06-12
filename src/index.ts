@@ -33,6 +33,8 @@ import { initTimezoneService } from './services/timezone/timezone-service.js';
 import { initUnitsService } from './services/units/units-service.js';
 
 await createApp({
+  name: 'reference-data-mcp-server',
+  title: 'reference-data-mcp-server',
   tools: [
     refGeoLookup,
     refGeoSearch,

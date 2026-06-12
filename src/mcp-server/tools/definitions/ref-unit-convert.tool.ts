@@ -40,7 +40,7 @@ export const refUnitConvert = tool('ref_unit_convert', {
     },
     {
       reason: 'unknown_unit',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'One or both units are not recognized by the underlying library.',
       recovery:
         'Use standard unit abbreviations: km, kg, C, F, K, R, m/h, kWh, Pa, kPa, J. Check for typos or degree symbols (use "C" not "°C").',

@@ -73,7 +73,7 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
     },
     {
       reason: 'invalid_at',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'The at parameter is not a valid ISO 8601 datetime string.',
       recovery: 'Use ISO 8601 format, e.g., "2026-01-15T12:00:00" or "2026-01-15T12:00:00Z".',
     },
