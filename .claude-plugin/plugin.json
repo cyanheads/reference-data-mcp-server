@@ -1,5 +1,5 @@
 {
-  "name": "@cyanheads/reference-data-mcp-server",
+  "name": "reference-data-mcp-server",
   "version": "0.1.10",
   "description": "Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.",
   "author": {
@@ -9,7 +9,7 @@
   "repository": "https://github.com/cyanheads/reference-data-mcp-server.git",
   "license": "Apache-2.0",
   "mcpServers": {
-    "@cyanheads/reference-data-mcp-server": {
+    "reference-data-mcp-server": {
       "command": "npx",
       "args": ["-y", "@cyanheads/reference-data-mcp-server"],
       "env": {
