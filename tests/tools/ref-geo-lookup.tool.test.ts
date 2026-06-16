@@ -3,7 +3,7 @@
  * @module tests/tools/ref-geo-lookup.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refGeoLookup } from '@/mcp-server/tools/definitions/ref-geo-lookup.tool.js';
 import { initGeoService } from '@/services/geo/geo-service.js';
@@ -52,6 +52,34 @@ describe('refGeoLookup', () => {
     const result = await refGeoLookup.handler(input, ctx);
     expect(result.alpha2).toBe('FR');
     expect(result.name).toBe('France');
+  });
+
+  it('emits a fuzzy-match notice when resolved via the fuzzy name path', async () => {
+    const ctx = createMockContext();
+    // "german" is not an exact country name/native-name key — it starts-with "germany".
+    const input = refGeoLookup.input.parse({ query: 'german' });
+    const result = await refGeoLookup.handler(input, ctx);
+    expect(result.name).toBe('Germany');
+    const enrichment = getEnrichment(ctx);
+    expect(enrichment.notice).toBeTruthy();
+    expect(enrichment.notice).toContain('german');
+    expect(enrichment.notice).toContain('Germany');
+    expect(enrichment.notice).toContain('DE');
+  });
+
+  it('emits no notice for an exact name match', async () => {
+    const ctx = createMockContext();
+    const input = refGeoLookup.input.parse({ query: 'Japan', by: 'name' });
+    const result = await refGeoLookup.handler(input, ctx);
+    expect(result.alpha2).toBe('JP');
+    expect(getEnrichment(ctx).notice).toBeUndefined();
+  });
+
+  it('emits no notice for an exact code match', async () => {
+    const ctx = createMockContext();
+    const input = refGeoLookup.input.parse({ query: 'DE' });
+    await refGeoLookup.handler(input, ctx);
+    expect(getEnrichment(ctx).notice).toBeUndefined();
   });
 
   it('throws for unrecognized query', async () => {

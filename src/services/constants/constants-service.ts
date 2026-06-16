@@ -10,10 +10,13 @@ import { constants, DATASET_VERSION } from '../../data/physical-constants.js';
 export type { PhysicalConstant };
 export { DATASET_VERSION };
 
+export type MatchStrategy = 'exact_symbol' | 'exact_name' | 'fuzzy';
+
 export interface ConstantResult {
   codata_id: string | null;
   description: string;
   exact: boolean;
+  match_strategy: MatchStrategy;
   name: string;
   related: Array<{ name: string; symbol: string }>;
   symbol: string;
@@ -60,7 +63,7 @@ export class ConstantsService {
     // Case-sensitive symbol match first (handles G vs g, F vs f, etc.)
     const caseExactIdx = this.caseSensitiveIndex.get(query);
     if (caseExactIdx != null) {
-      return this.buildResult(caseExactIdx, this.findRelated(caseExactIdx));
+      return this.buildResult(caseExactIdx, this.findRelated(caseExactIdx), 'exact_symbol');
     }
 
     const queryLower = query.toLowerCase();
@@ -68,7 +71,7 @@ export class ConstantsService {
     // Exact case-insensitive match
     const exactIdx = this.aliasIndex.get(queryLower);
     if (exactIdx != null) {
-      return this.buildResult(exactIdx, this.findRelated(exactIdx));
+      return this.buildResult(exactIdx, this.findRelated(exactIdx), 'exact_name');
     }
 
     // Partial/fuzzy match — find all candidates by scanning names and aliases
@@ -91,7 +94,7 @@ export class ConstantsService {
     candidates.sort((a, b) => b.score - a.score);
     const primary = candidates[0]!.idx;
     const relatedIdxs = candidates.slice(1, 4).map((c) => c.idx);
-    return this.buildResult(primary, relatedIdxs);
+    return this.buildResult(primary, relatedIdxs, 'fuzzy');
   }
 
   /** Find up to 3 related constants for a given primary index by scanning for name/term overlap. */
@@ -115,7 +118,11 @@ export class ConstantsService {
     return related.slice(0, 3).map((r) => r.idx);
   }
 
-  private buildResult(idx: number, relatedIdxs: number[]): ConstantResult {
+  private buildResult(
+    idx: number,
+    relatedIdxs: number[],
+    matchStrategy: MatchStrategy,
+  ): ConstantResult {
     const c = this.all[idx]!;
     return {
       name: c.name,
@@ -127,6 +134,7 @@ export class ConstantsService {
       description: c.description,
       codata_id: c.codata_id,
       exact: c.exact,
+      match_strategy: matchStrategy,
       related: relatedIdxs
         .map((i) => this.all[i])
         .filter((c): c is PhysicalConstant => c != null)

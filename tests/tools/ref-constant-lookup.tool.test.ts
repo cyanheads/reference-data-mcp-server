@@ -33,6 +33,30 @@ describe('refConstantLookup', () => {
     expect(result.symbol).toBeTruthy();
   });
 
+  it('reports match_strategy "exact_symbol" for a case-sensitive symbol hit', async () => {
+    const ctx = createMockContext();
+    // Capital G is the gravitational constant — a case-sensitive symbol match.
+    const input = refConstantLookup.input.parse({ query: 'G' });
+    const result = await refConstantLookup.handler(input, ctx);
+    expect(result.symbol).toBe('G');
+    expect(result.match_strategy).toBe('exact_symbol');
+  });
+
+  it('reports match_strategy "exact_name" for an exact name/alias hit', async () => {
+    const ctx = createMockContext();
+    const input = refConstantLookup.input.parse({ query: 'speed of light' });
+    const result = await refConstantLookup.handler(input, ctx);
+    expect(result.match_strategy).toBe('exact_name');
+  });
+
+  it('reports match_strategy "fuzzy" for a partial query', async () => {
+    const ctx = createMockContext();
+    // "electron" is not an exact constant name — it partial-matches several.
+    const input = refConstantLookup.input.parse({ query: 'electron' });
+    const result = await refConstantLookup.handler(input, ctx);
+    expect(result.match_strategy).toBe('fuzzy');
+  });
+
   it('resolves Planck constant by name', async () => {
     const ctx = createMockContext();
     const input = refConstantLookup.input.parse({ query: 'Planck constant' });
@@ -101,6 +125,7 @@ describe('refConstantLookup', () => {
       description: 'The speed of light.',
       codata_id: 'CODATA-c',
       exact: true,
+      match_strategy: 'exact_name' as const,
       dataset_version: 'CODATA 2022',
       related: [{ name: 'Planck constant', symbol: 'h' }],
     };
@@ -113,9 +138,11 @@ describe('refConstantLookup', () => {
     expect(text).toContain('m s⁻¹');
     expect(text).toContain('CODATA 2022');
     expect(text).toContain('Planck constant');
+    // match_strategy must render to satisfy format-parity.
+    expect(text).toContain('exact_name');
   });
 
-  it('formats output without related constants when none present', () => {
+  it('formats a fuzzy match with a caution annotation', () => {
     const output = {
       name: 'some constant',
       symbol: 'X',
@@ -126,11 +153,13 @@ describe('refConstantLookup', () => {
       description: 'A test constant.',
       codata_id: null,
       exact: false,
+      match_strategy: 'fuzzy' as const,
       dataset_version: 'CODATA 2022',
       related: [],
     };
     const blocks = refConstantLookup.format!(output);
     const text = blocks[0]!.text as string;
     expect(text).not.toContain('Related constants');
+    expect(text).toContain('fuzzy');
   });
 });

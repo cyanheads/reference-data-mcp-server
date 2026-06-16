@@ -41,6 +41,11 @@ export const refConstantLookup = tool('ref_constant_lookup', {
     exact: z
       .boolean()
       .describe('True when the constant has an exact defined value (no experimental uncertainty).'),
+    match_strategy: z
+      .enum(['exact_symbol', 'exact_name', 'fuzzy'])
+      .describe(
+        'How this constant was matched: exact_symbol = case-sensitive symbol hit (e.g. "G"), exact_name = exact alias/name match, fuzzy = partial or contains match. fuzzy signals the query was imprecise and the result is the closest candidate.',
+      ),
     dataset_version: z.string().describe('Data source version (CODATA year).'),
     related: z
       .array(
@@ -88,6 +93,7 @@ export const refConstantLookup = tool('ref_constant_lookup', {
       `**Value:** ${result.value} ${result.unit}`,
       `**Uncertainty:** ${result.uncertainty != null ? `${result.uncertainty} (relative: ${result.uncertainty_relative ?? 'N/A'})` : (result.uncertainty_relative ?? 'N/A')}${result.exact ? ' (exact by definition)' : ''}`,
       `**Dataset:** ${result.dataset_version}${result.codata_id ? ` (CODATA: ${result.codata_id})` : ''}`,
+      `**Match:** ${result.match_strategy}${result.match_strategy === 'fuzzy' ? ' — closest candidate for an imprecise query; verify before reuse' : ''}`,
       '',
       result.description,
     ];

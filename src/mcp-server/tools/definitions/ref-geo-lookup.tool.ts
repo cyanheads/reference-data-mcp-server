@@ -71,6 +71,17 @@ export const refGeoLookup = tool('ref_geo_lookup', {
       .describe('IANA timezone IDs observed in this country (e.g., "America/New_York").'),
   }),
 
+  // Agent-facing context: signals when the country was resolved by fuzzy name matching
+  // rather than an exact hit, so the caller knows whether to normalize the canonical name.
+  enrichment: {
+    notice: z
+      .string()
+      .optional()
+      .describe(
+        'Present only when the country was resolved via fuzzy name matching (starts-with or contains), not an exact code or name hit. Echoes the query and the resolved country so the caller can normalize follow-up lookups.',
+      ),
+  },
+
   errors: [
     {
       reason: 'no_match',
@@ -84,19 +95,27 @@ export const refGeoLookup = tool('ref_geo_lookup', {
     if (!input.query.trim()) {
       throw ctx.fail('no_match', 'Empty query. Provide a country name, alpha-2, or alpha-3 code.');
     }
-    const result = getGeoService().lookup(input.query, input.by, ctx);
-    if (result === 'numeric_unsupported') {
+    const match = getGeoService().lookup(input.query, input.by, ctx);
+    if (match === 'numeric_unsupported') {
       throw ctx.fail(
         'no_match',
         'Numeric country code lookup is not supported. Use alpha2 or alpha3 codes, or try the country name.',
       );
     }
-    if (!result) {
+    if (!match) {
       throw ctx.fail(
         'no_match',
         `No country matched "${input.query}". Try a different spelling or use ref_geo_search with a keyword.`,
       );
     }
+
+    const { record: result, fuzzy } = match;
+    if (fuzzy) {
+      ctx.enrich.notice(
+        `Fuzzy name match: resolved '${input.query}' → ${result.name} (${result.alpha2}). Use the canonical name or '${result.alpha2}' for exact follow-up lookups.`,
+      );
+    }
+
     return {
       alpha2: result.alpha2,
       alpha3: result.alpha3,

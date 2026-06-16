@@ -399,15 +399,28 @@ export class GeoService {
   }
 
   lookupByName(name: string): CountryRecord | undefined {
+    return this.lookupByNameTracked(name)?.record;
+  }
+
+  /**
+   * Name lookup that reports which path resolved the match — exact map hit vs.
+   * the starts-with/contains fuzzy fallback. The tool layer uses `fuzzy` to emit
+   * an enrichment notice so an agent knows whether to normalize the canonical name.
+   */
+  private lookupByNameTracked(name: string): { record: CountryRecord; fuzzy: boolean } | undefined {
     // Exact match
     const exact = this.byName.get(name.toLowerCase());
-    if (exact) return this.byAlpha2.get(exact);
+    if (exact) {
+      const record = this.byAlpha2.get(exact);
+      return record ? { record, fuzzy: false } : undefined;
+    }
 
     // Fuzzy: find any country whose name starts with or contains the query
     const lower = name.toLowerCase();
     for (const [key, alpha2] of this.byName) {
       if (key.startsWith(lower) || key.includes(lower)) {
-        return this.byAlpha2.get(alpha2);
+        const record = this.byAlpha2.get(alpha2);
+        return record ? { record, fuzzy: true } : undefined;
       }
     }
     return;
@@ -417,28 +430,36 @@ export class GeoService {
     query: string,
     by: 'auto' | 'name' | 'alpha2' | 'alpha3' | 'numeric',
     ctx: Context,
-  ): CountryRecord | 'numeric_unsupported' | undefined {
+  ): { record: CountryRecord; fuzzy: boolean } | 'numeric_unsupported' | undefined {
     ctx.log.debug('Geo lookup', { query, by });
 
     if (by === 'numeric') {
       return 'numeric_unsupported';
     }
 
-    let result: CountryRecord | undefined;
+    // Code lookups (alpha2/alpha3) are always exact; only the name path can be fuzzy.
     if (by === 'alpha2') {
-      result = this.lookupByAlpha2(query);
-    } else if (by === 'alpha3') {
-      result = this.lookupByAlpha3(query);
-    } else if (by === 'name') {
-      result = this.lookupByName(query);
-    } else {
-      // auto: try alpha2, alpha3, then name
-      if (query.length === 2) result = this.lookupByAlpha2(query);
-      if (!result && query.length === 3) result = this.lookupByAlpha3(query);
-      if (!result) result = this.lookupByName(query);
+      const record = this.lookupByAlpha2(query);
+      return record ? { record, fuzzy: false } : undefined;
+    }
+    if (by === 'alpha3') {
+      const record = this.lookupByAlpha3(query);
+      return record ? { record, fuzzy: false } : undefined;
+    }
+    if (by === 'name') {
+      return this.lookupByNameTracked(query);
     }
 
-    return result;
+    // auto: try alpha2, alpha3 (exact), then name (may be fuzzy)
+    if (query.length === 2) {
+      const record = this.lookupByAlpha2(query);
+      if (record) return { record, fuzzy: false };
+    }
+    if (query.length === 3) {
+      const record = this.lookupByAlpha3(query);
+      if (record) return { record, fuzzy: false };
+    }
+    return this.lookupByNameTracked(query);
   }
 
   search(
