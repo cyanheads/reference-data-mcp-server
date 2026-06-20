@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-06-12 07:58:07
+Generated on: 2026-06-20 18:05:20
 
 ```text
 reference-data-mcp-server/
@@ -27,6 +27,7 @@ reference-data-mcp-server/
 ├── scripts/
 │   ├── build-changelog.ts
 │   ├── build.ts
+│   ├── check-dependency-specifiers.ts
 │   ├── check-docs-sync.ts
 │   ├── check-framework-antipatterns.ts
 │   ├── check-skill-versions.ts
