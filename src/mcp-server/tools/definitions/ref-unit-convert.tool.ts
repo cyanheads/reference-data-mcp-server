@@ -10,7 +10,7 @@ import { getUnitsService } from '@/services/units/units-service.js';
 export const refUnitConvert = tool('ref_unit_convert', {
   title: 'Unit Conversion',
   description:
-    'Convert a numeric value between compatible units of measure. Supports: length (mm, cm, m, km, in, ft, yd, mi), mass (mcg, mg, g, kg, oz, lb, mt, t), volume (ml, cl, dl, l, kl, tsp, Tbs, fl-oz, cup, pnt, qt, gal, m3), temperature (C, F, K, R — non-linear conversions handled), speed (m/s, km/h, knot, ft/s), pressure (Pa, kPa, MPa, hPa, bar, torr, psi), energy (J, kJ, Wh, kWh, MWh), power (W, mW, kW, MW, GW), frequency (Hz, kHz, MHz, GHz), digital storage (b, Kb, Mb, Gb, Tb, B, KB, MB, GB, TB), and angle (deg, rad, grad). Incompatible units (e.g., km to kg) return an error identifying the quantity mismatch.',
+    'Convert a numeric value between compatible units of measure. Supports: length (mm, cm, m, km, in, ft, yd, mi), mass (mcg, mg, g, kg, oz, lb, mt = metric tonne / 1000 kg, t = US short ton / 907.18 kg), volume (ml, cl, dl, l, kl, tsp, Tbs, fl-oz, cup, pnt, qt, gal, m3), temperature (C, F, K, R — non-linear conversions handled), speed (m/s, km/h, knot, ft/s), pressure (Pa, kPa, MPa, hPa, bar, torr, psi), energy (J, kJ, Wh, kWh, MWh), power (W, mW, kW, MW, GW), frequency (Hz, kHz, MHz, GHz), digital storage (b, Kb, Mb, Gb, Tb, B, KB, MB, GB, TB), and angle (deg, rad, grad). Incompatible units (e.g., km to kg) return an error identifying the quantity mismatch.',
   annotations: { readOnlyHint: true, openWorldHint: false },
 
   input: z.object({
