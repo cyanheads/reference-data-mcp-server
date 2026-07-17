@@ -55,9 +55,10 @@ export class MimeService {
     // Extension lookup
     const ext = normalized.toLowerCase();
     const types = this.byExtension.get(ext);
-    if (!types || types.length === 0) return;
+    if (!types) return;
 
-    const primary = types[0]!;
+    const primary = types[0];
+    if (!primary) return;
     const primaryInfo = db[primary];
     const alternatives = types.slice(1).map((t) => ({
       type: t,

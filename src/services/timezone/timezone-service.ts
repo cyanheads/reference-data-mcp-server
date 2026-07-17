@@ -285,7 +285,12 @@ export class TimezoneService {
 
     // Parse the input datetime as local time in the source timezone
     // ISO 8601 local format: "2026-05-24T15:30:00" — format pre-validated by the handler
-    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/)!;
+    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+    if (!match) {
+      throw new Error(
+        `Datetime "${datetime}" does not match the expected ISO 8601 local format (YYYY-MM-DDTHH:mm:ss).`,
+      );
+    }
     const [, year = 0, month = 1, day = 1, hour = 0, minute = 0, second = 0] = match.map(Number);
 
     // Build the UTC timestamp by interpreting the local datetime in the source timezone.

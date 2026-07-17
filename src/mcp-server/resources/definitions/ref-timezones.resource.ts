@@ -82,11 +82,10 @@ export const refTimezonesResource = resource('ref://timezones/{iana_id}', {
     }
 
     const records = getTimezoneService().lookup(ianaId, 'iana', undefined, ctx);
-    if (!records || records.length === 0) {
+    const record = records?.[0];
+    if (!record) {
       throw notFound(`No timezone data found for "${ianaId}".`, { iana_id: ianaId });
     }
-
-    const record = records[0]!;
     return {
       ...record,
       evaluated_at: new Date().toISOString(),

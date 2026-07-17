@@ -63,9 +63,9 @@ export class HttpStatusService {
         s.category.toLowerCase().includes(queryLower),
     );
 
-    if (matches.length === 0) return;
+    const primary = matches[0];
+    if (!primary) return;
 
-    const primary = matches[0]!;
     const altMatches = matches.slice(1).map((s) => ({
       code: s.code,
       reason_phrase: s.reason_phrase,
