@@ -138,4 +138,19 @@ describe('refGeoLookup', () => {
     expect(text).toContain('Antarctica');
     expect(text).toContain('N/A');
   });
+
+  it('returns .uk (not .gb) for the United Kingdom', async () => {
+    const ctx = createMockContext();
+    const input = refGeoLookup.input.parse({ query: 'GB' });
+    const result = await refGeoLookup.handler(input, ctx);
+    expect(result.alpha2).toBe('GB');
+    expect(result.tld).toBe('.uk');
+  });
+
+  it('leaves an unaffected country tld unchanged (JP → .jp)', async () => {
+    const ctx = createMockContext();
+    const input = refGeoLookup.input.parse({ query: 'JP' });
+    const result = await refGeoLookup.handler(input, ctx);
+    expect(result.tld).toBe('.jp');
+  });
 });

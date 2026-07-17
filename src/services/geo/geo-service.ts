@@ -325,6 +325,14 @@ function getCurrencyInfo(code: string): Currency {
   };
 }
 
+/**
+ * ccTLD overrides for the rare countries whose top-level domain diverges from the
+ * lowercased ISO 3166-1 alpha-2 code. GB → uk is the only such divergence in the
+ * server's 252-country set; the ccTLD is derived here, not sourced (countries-list
+ * carries no domain field).
+ */
+const CCTLD_OVERRIDES: Record<string, string> = { GB: 'uk' };
+
 function normalizeCountry(alpha2: string): CountryRecord {
   const data = getCountryData(alpha2 as 'US');
   const flag = getEmojiFlag(alpha2 as 'US');
@@ -363,7 +371,7 @@ function normalizeCountry(alpha2: string): CountryRecord {
     languages: langs,
     currencies,
     calling_codes: (data.phone ?? []).map((p) => `+${p}`),
-    tld: `.${alpha2.toLowerCase()}`,
+    tld: `.${CCTLD_OVERRIDES[alpha2.toUpperCase()] ?? alpha2.toLowerCase()}`,
     flag,
     borders: [], // countries-list doesn't include borders
     timezones,
