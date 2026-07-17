@@ -9,6 +9,20 @@ import type { ElementRecord, ElementSummary } from './types.js';
 
 export { DATASET_VERSION };
 
+/**
+ * International / IUPAC name spellings that diverge from the dataset's en-US forms, mapped
+ * to the stored element's lowercase symbol. The periodic-table dataset stores American
+ * spellings (Aluminum, Cesium, Sulfur); the en-GB / IUPAC-preferred variants are neither a
+ * prefix nor a superset of them, so the fuzzy `startsWith` fallback cannot bridge the gap.
+ * An explicit 3-entry map is right-sized — a per-element alias field would be disproportionate
+ * for 3 of 118 rows (see issue #34).
+ */
+const NAME_ALIASES: Record<string, string> = {
+  aluminium: 'al',
+  caesium: 'cs',
+  sulphur: 's',
+};
+
 export class ElementsService {
   private readonly byNumber: Map<number, ElementRecord>;
   private readonly bySymbol: Map<string, ElementRecord>;
@@ -43,13 +57,13 @@ export class ElementsService {
     } else if (by === 'symbol') {
       result = this.bySymbol.get(String(query).toLowerCase());
     } else if (by === 'name') {
-      result = this.byName.get(String(query).toLowerCase());
+      result = this.resolveName(String(query));
     } else {
       // auto: try number, then symbol, then name
       const numQuery = typeof query === 'number' ? query : parseInt(String(query), 10);
       if (!Number.isNaN(numQuery)) result = this.byNumber.get(numQuery);
       if (!result) result = this.bySymbol.get(String(query).toLowerCase());
-      if (!result) result = this.byName.get(String(query).toLowerCase());
+      if (!result) result = this.resolveName(String(query));
       // Fuzzy name match
       if (!result) {
         const lower = String(query).toLowerCase();
@@ -63,6 +77,19 @@ export class ElementsService {
     }
 
     return result;
+  }
+
+  /**
+   * Resolve a name query to a record: exact stored name first, then the international /
+   * IUPAC spelling alias map. Consulted by both the `name` branch and the `auto` branch so
+   * an alias resolves regardless of the explicit lookup mode.
+   */
+  private resolveName(query: string): ElementRecord | undefined {
+    const lower = query.toLowerCase();
+    const exact = this.byName.get(lower);
+    if (exact) return exact;
+    const aliasSymbol = NAME_ALIASES[lower];
+    return aliasSymbol ? this.bySymbol.get(aliasSymbol) : undefined;
   }
 
   search(

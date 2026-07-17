@@ -71,6 +71,40 @@ describe('refElementLookup', () => {
     expect(() => refElementLookup.handler(input, ctx)).toThrow(/No element matched/);
   });
 
+  it('resolves the IUPAC spelling Aluminium via the auto branch (#34)', async () => {
+    const ctx = createMockContext();
+    const input = refElementLookup.input.parse({ query: 'Aluminium' });
+    const result = await refElementLookup.handler(input, ctx);
+    expect(result.symbol).toBe('Al');
+    expect(result.number).toBe(13);
+    expect(result.name).toBe('Aluminum');
+  });
+
+  it('resolves Caesium with explicit by:"name" (#34 — the branch most likely to be missed)', async () => {
+    const ctx = createMockContext();
+    const input = refElementLookup.input.parse({ query: 'Caesium', by: 'name' });
+    const result = await refElementLookup.handler(input, ctx);
+    expect(result.symbol).toBe('Cs');
+    expect(result.number).toBe(55);
+  });
+
+  it('resolves the British spelling Sulphur (#34)', async () => {
+    const ctx = createMockContext();
+    const input = refElementLookup.input.parse({ query: 'Sulphur' });
+    const result = await refElementLookup.handler(input, ctx);
+    expect(result.symbol).toBe('S');
+    expect(result.number).toBe(16);
+  });
+
+  it('leaves an unrelated fuzzy name lookup unaffected by the alias map (#34 control)', async () => {
+    const ctx = createMockContext();
+    // A prefix fuzzy match with no alias-map entry must still resolve via startsWith.
+    const input = refElementLookup.input.parse({ query: 'heliu' });
+    const result = await refElementLookup.handler(input, ctx);
+    expect(result.symbol).toBe('He');
+    expect(result.name).toBe('Helium');
+  });
+
   it('formats output with symbol, name, and atomic number', () => {
     const output = {
       number: 6,
