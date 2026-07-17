@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.14](changelog/0.1.x/0.1.14.md) — 2026-07-16
+
+ref_timezone_convert rejects out-of-range and DST spring-forward-gap datetimes; ref_element_lookup accepts IUPAC/international spellings; ref_constant_lookup reports exact_name for name queries; unit_convert mt/t disambiguation and a README constant-count correction.
+
 ## [0.1.13](changelog/0.1.x/0.1.13.md) — 2026-07-16
 
 Adopt @cyanheads/mcp-ts-core ^0.10.14 with install-time supply-chain guards (Socket scanner, minimum release age, Docker --ignore-scripts); fix HTTP cacheability flags (#29), UK ccTLD (#30), molar-volume value (#31), and constant relatedness (#33, #36).
