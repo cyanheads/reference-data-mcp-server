@@ -77,14 +77,13 @@ export class ConstantsService {
       for (const alias of c.aliases) {
         this.aliasIndex.set(alias.toLowerCase(), i);
       }
-      // Also store original-case entries for symbols/aliases where case matters
+      // Case-sensitive entry for the canonical symbol ONLY — this backs the exact_symbol
+      // branch, whose sole job is disambiguating symbols that differ only by case (e.g. "G"
+      // gravitational constant vs "g" standard gravity, whose "g" alias resolves through the
+      // case-insensitive index below). Aliases are deliberately excluded: a mixed-case name
+      // alias (e.g. "Rydberg constant") resolving here would be mislabeled exact_symbol, when
+      // it is an exact_name hit. It resolves case-insensitively below instead. See #38.
       this.caseSensitiveIndex.set(c.symbol, i);
-      for (const alias of c.aliases) {
-        // Only store if case differs from lowercase to avoid masking the general index
-        if (alias !== alias.toLowerCase()) {
-          this.caseSensitiveIndex.set(alias, i);
-        }
-      }
     }
   }
 

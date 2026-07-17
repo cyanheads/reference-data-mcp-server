@@ -64,6 +64,28 @@ describe('refConstantLookup', () => {
     expect(result.name.toLowerCase()).toContain('planck');
     expect(result.value).toBeGreaterThan(0);
     expect(result.exact).toBe(true); // 2019 SI redefinition made it exact
+    // A mixed-case *name* must report exact_name, not exact_symbol (#38).
+    expect(result.match_strategy).toBe('exact_name');
+  });
+
+  it('labels a mixed-case name query exact_name, not exact_symbol (#38)', async () => {
+    const ctx = createMockContext();
+    // "Rydberg constant" is a capitalized name alias — before #38 it resolved through the
+    // case-sensitive symbol index and was mislabeled exact_symbol.
+    const byName = await refConstantLookup.handler(
+      refConstantLookup.input.parse({ query: 'Rydberg constant' }),
+      ctx,
+    );
+    expect(byName.name).toBe('Rydberg constant');
+    expect(byName.match_strategy).toBe('exact_name');
+
+    // The canonical symbol still reports exact_symbol and resolves the same constant.
+    const bySymbol = await refConstantLookup.handler(
+      refConstantLookup.input.parse({ query: 'R∞' }),
+      ctx,
+    );
+    expect(bySymbol.name).toBe('Rydberg constant');
+    expect(bySymbol.match_strategy).toBe('exact_symbol');
   });
 
   it('returns exact: true for defined constants', async () => {
