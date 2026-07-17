@@ -162,4 +162,80 @@ describe('refConstantLookup', () => {
     expect(text).not.toContain('Related constants');
     expect(text).toContain('fuzzy');
   });
+
+  it('molar volume of ideal gas carries the 1 atm value with a matching pressure label', async () => {
+    const ctx = createMockContext();
+    const input = refConstantLookup.input.parse({ query: 'molar volume' });
+    const result = await refConstantLookup.handler(input, ctx);
+    expect(result.name).toBe('molar volume of ideal gas (STP)');
+    expect(result.value).toBe(0.02241396954);
+    expect(result.uncertainty_relative).toBe('exact (at 273.15 K, 101.325 kPa / 1 atm)');
+    expect(result.exact).toBe(true);
+  });
+
+  it('drops single-letter/substring false positives from related[] (molar volume)', async () => {
+    const ctx = createMockContext();
+    const input = refConstantLookup.input.parse({ query: 'molar volume' });
+    const result = await refConstantLookup.handler(input, ctx);
+    const relatedNames = result.related.map((r) => r.name);
+    // Previously matched via the 'e'/'g'/'me' substrings of "molar volume of ideal gas".
+    expect(relatedNames).not.toContain('elementary charge');
+    expect(relatedNames).not.toContain('gravitational constant');
+    expect(relatedNames).not.toContain('electron mass');
+    // A genuine whole-token relation still surfaces (shares {molar, gas}).
+    expect(relatedNames).toContain('molar gas constant');
+  });
+
+  it('keeps genuine related constants for speed of light (shared {vacuum} token)', async () => {
+    const ctx = createMockContext();
+    const input = refConstantLookup.input.parse({ query: 'speed of light' });
+    const result = await refConstantLookup.handler(input, ctx);
+    const relatedNames = result.related.map((r) => r.name);
+    expect(result.related.length).toBeGreaterThan(0);
+    expect(
+      relatedNames.some(
+        (n) => n === 'vacuum electric permittivity' || n === 'vacuum magnetic permeability',
+      ),
+    ).toBe(true);
+    // Old substring false positives (via "ligHt"/"Elementary"/"Gravitational") are gone.
+    expect(relatedNames).not.toContain('Planck constant');
+    expect(relatedNames).not.toContain('elementary charge');
+    expect(relatedNames).not.toContain('gravitational constant');
+  });
+
+  it('drops the domain-generic "constant" token so "X constant" entries no longer collide (#36)', async () => {
+    const ctx = createMockContext();
+    // Before #36: "constant" appeared in 14 of 32 names but was not a stopword, so
+    // any two "X constant" entries scored ≥1 on that shared word alone and returned
+    // the first three "constant"-named entries in dataset array order.
+    for (const query of ['Rydberg constant', 'von Klitzing constant', 'Josephson constant']) {
+      const input = refConstantLookup.input.parse({ query });
+      const result = await refConstantLookup.handler(input, ctx);
+      const relatedNames = result.related.map((r) => r.name);
+      // The old array-order trio — physically unrelated, matched only via "constant".
+      expect(relatedNames).not.toContain('Planck constant');
+      expect(relatedNames).not.toContain('reduced Planck constant');
+      expect(relatedNames).not.toContain('Avogadro constant');
+      // None of these three shares a real domain token with any other entry, so
+      // an empty related[] is the correct result (better than noise, per #33).
+      expect(result.related).toHaveLength(0);
+    }
+  });
+
+  it('preserves genuine "constant" relations that share a real domain token (#36)', async () => {
+    const ctx = createMockContext();
+    // Planck ↔ reduced Planck via the shared "planck" token — must survive.
+    const planck = await refConstantLookup.handler(
+      refConstantLookup.input.parse({ query: 'Planck constant' }),
+      ctx,
+    );
+    expect(planck.related.map((r) => r.name)).toContain('reduced Planck constant');
+
+    // molar gas constant ↔ molar volume of ideal gas via {molar, gas} — must survive.
+    const molarGas = await refConstantLookup.handler(
+      refConstantLookup.input.parse({ query: 'molar gas constant' }),
+      ctx,
+    );
+    expect(molarGas.related.map((r) => r.name)).toContain('molar volume of ideal gas (STP)');
+  });
 });

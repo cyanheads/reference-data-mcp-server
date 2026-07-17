@@ -26,6 +26,38 @@ export interface ConstantResult {
   value: number;
 }
 
+/**
+ * Tokens dropped before relatedness scoring: common English stopwords plus
+ * "constant" — a domain-generic term in ~14 of 32 names, so scoring on it would
+ * relate every "X constant" to every other with no physical meaning. Only true
+ * noise words belong here; domain terms (vacuum, molar, planck, …) stay scorable.
+ */
+const RELATED_STOPWORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'at',
+  'constant',
+  'for',
+  'in',
+  'is',
+  'of',
+  'the',
+  'to',
+]);
+
+/**
+ * Tokenize a constant name for relatedness scoring: lowercase, split on
+ * non-alphanumerics, keep tokens of length ≥ 3, and drop common stopwords.
+ */
+function nameTokens(name: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const token of name.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (token.length >= 3 && !RELATED_STOPWORDS.has(token)) tokens.add(token);
+  }
+  return tokens;
+}
+
 export class ConstantsService {
   private readonly all: PhysicalConstant[];
   // Map from alias/name → constant index
@@ -39,8 +71,7 @@ export class ConstantsService {
     this.aliasIndex = new Map();
     this.caseSensitiveIndex = new Map();
 
-    for (let i = 0; i < constants.length; i++) {
-      const c = constants[i]!;
+    for (const [i, c] of constants.entries()) {
       this.aliasIndex.set(c.name.toLowerCase(), i);
       this.aliasIndex.set(c.symbol.toLowerCase(), i);
       for (const alias of c.aliases) {
@@ -86,31 +117,33 @@ export class ConstantsService {
       }
     }
 
-    if (candidates.length === 0) {
-      return;
-    }
-
-    // Sort by score descending
+    // Sort by score descending; the top-scoring candidate is the primary match.
     candidates.sort((a, b) => b.score - a.score);
-    const primary = candidates[0]!.idx;
+    const primary = candidates[0];
+    if (!primary) return;
     const relatedIdxs = candidates.slice(1, 4).map((c) => c.idx);
-    return this.buildResult(primary, relatedIdxs, 'fuzzy');
+    return this.buildResult(primary.idx, relatedIdxs, 'fuzzy');
   }
 
-  /** Find up to 3 related constants for a given primary index by scanning for name/term overlap. */
+  /**
+   * Find up to 3 related constants for a primary index by whole-token overlap on the
+   * constant name. Scoring is set intersection over name tokens (split on
+   * non-alphanumerics, lowercased, length ≥ 3, common stopwords dropped); symbols and
+   * aliases are deliberately excluded, since their short 1–2 char forms produced
+   * substring false positives. An empty result is valid and preferred over noise.
+   */
   private findRelated(primaryIdx: number): number[] {
-    const primary = this.all[primaryIdx]!;
-    const primaryTerms = new Set([primary.name.toLowerCase(), primary.symbol.toLowerCase()]);
+    const primary = this.all[primaryIdx];
+    if (!primary) return [];
+    const primaryTokens = nameTokens(primary.name);
+    if (primaryTokens.size === 0) return [];
 
     const related: Array<{ idx: number; score: number }> = [];
-    for (let i = 0; i < this.all.length; i++) {
+    for (const [i, c] of this.all.entries()) {
       if (i === primaryIdx) continue;
-      const c = this.all[i]!;
-      const allTerms = [c.name, c.symbol, ...c.aliases].map((n) => n.toLowerCase());
-      // Score by overlap: how many terms from primary appear in this entry's terms
       let score = 0;
-      for (const term of primaryTerms) {
-        if (allTerms.some((t) => t.includes(term) || term.includes(t))) score++;
+      for (const token of nameTokens(c.name)) {
+        if (primaryTokens.has(token)) score++;
       }
       if (score > 0) related.push({ idx: i, score });
     }
@@ -123,7 +156,8 @@ export class ConstantsService {
     relatedIdxs: number[],
     matchStrategy: MatchStrategy,
   ): ConstantResult {
-    const c = this.all[idx]!;
+    const c = this.all[idx];
+    if (!c) throw new Error(`Constant index ${idx} is out of range.`);
     return {
       name: c.name,
       symbol: c.symbol,
