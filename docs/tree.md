@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-06-20 18:05:20
+Generated on: 2026-07-17 00:35:51
 
 ```text
 reference-data-mcp-server/
@@ -14,7 +14,8 @@ reference-data-mcp-server/
 │   │   ├── bug_report.yml
 │   │   ├── config.yml
 │   │   └── feature_request.yml
-│   └── FUNDING.yml
+│   ├── FUNDING.yml
+│   └── SECURITY.md
 ├── .vscode/
 │   ├── extensions.json
 │   └── settings.json
@@ -127,6 +128,9 @@ reference-data-mcp-server/
 │       └── SKILL.md
 ├── src/
 │   ├── data/
+│   │   ├── http-status-codes.ts
+│   │   ├── periodic-table.ts
+│   │   └── physical-constants.ts
 │   ├── mcp-server/
 │   │   ├── prompts/
 │   │   │   └── definitions/
@@ -189,6 +193,7 @@ reference-data-mcp-server/
 │       └── ref-unit-convert.tool.test.ts
 ├── .dockerignore
 ├── .env.example
+├── .gitattributes
 ├── .gitignore
 ├── .mcpbignore
 ├── AGENTS.md
