@@ -5,6 +5,7 @@
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { httpStatusCodes } from '@/data/http-status-codes.js';
 import { refHttpStatus } from '@/mcp-server/tools/definitions/ref-http-status.tool.js';
 import { initHttpStatusService } from '@/services/http-status/http-status-service.js';
 
@@ -128,5 +129,30 @@ describe('refHttpStatus', () => {
     expect(text).toContain('302');
     expect(text).toContain('Found');
     expect(text).toContain('308');
+  });
+
+  it.each([
+    { code: '204', reason: 'No Content', cacheable: true },
+    { code: '405', reason: 'Method Not Allowed', cacheable: true },
+    { code: '304', reason: 'Not Modified', cacheable: false },
+    { code: '226', reason: 'IM Used', cacheable: false },
+  ])('reports cacheable=$cacheable for $code ($reason) per RFC 9110 §15.1', async ({
+    code,
+    cacheable,
+  }) => {
+    const ctx = createMockContext();
+    const input = refHttpStatus.input.parse({ query: code });
+    const result = await refHttpStatus.handler(input, ctx);
+    expect(result.cacheable).toBe(cacheable);
+  });
+
+  it('cacheable flags match the RFC 9110 §15.1 heuristically-cacheable set exactly', () => {
+    // The set the `cacheable` field encodes: statuses reusable by a cache with heuristic expiration.
+    const heuristicallyCacheable = [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
+    const flagged = httpStatusCodes
+      .filter((s) => s.cacheable)
+      .map((s) => s.code)
+      .sort((a, b) => a - b);
+    expect(flagged).toEqual(heuristicallyCacheable);
   });
 });
