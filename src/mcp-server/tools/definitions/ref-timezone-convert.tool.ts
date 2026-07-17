@@ -16,6 +16,10 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
   input: z.object({
     datetime: z
       .string()
+      .regex(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
+        'Datetime must be ISO 8601 local time without an offset, e.g. "2026-05-24T15:30:00".',
+      )
       .describe(
         'Local datetime in ISO 8601 format without timezone offset (e.g., "2026-05-24T15:30:00"). Do not include "Z" or an offset suffix.',
       ),
@@ -63,20 +67,15 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
     {
       reason: 'invalid_datetime',
       code: JsonRpcErrorCode.ValidationError,
-      when: 'Datetime string is malformed or contains a timezone offset.',
-      recovery: 'Use ISO 8601 without any timezone offset, e.g., "2026-05-24T15:30:00".',
+      when: 'Datetime has out-of-range calendar components (e.g. month 13, February 30) or falls in a daylight-saving spring-forward gap that never occurs in the source timezone. (Malformed format is rejected by the input schema.)',
+      recovery:
+        'Use a real calendar date and 24-hour time; if the moment is during a spring-forward transition, choose a time outside the skipped hour.',
     },
   ],
 
   handler(input, ctx) {
-    // Validate datetime format before delegating — ensures ctx.fail populates data.reason
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(input.datetime)) {
-      throw ctx.fail(
-        'invalid_datetime',
-        `Malformed datetime "${input.datetime}". Use ISO 8601 without timezone offset, e.g., "2026-05-24T15:30:00".`,
-      );
-    }
-    // Validate timezone IDs before delegating
+    // Datetime *format* is enforced by the input schema's regex. The handler validates
+    // semantic convertibility: timezones first, then calendar range + DST-gap.
     const svc = getTimezoneService();
     const resolvedFrom = svc.resolveIanaIdPublic(input.from_tz) ?? input.from_tz;
     const resolvedTo = svc.resolveIanaIdPublic(input.to_tz) ?? input.to_tz;
@@ -92,7 +91,13 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
         `Unrecognized target timezone "${input.to_tz}". Use ref_timezone_lookup to find the correct IANA ID.`,
       );
     }
-    return getTimezoneService().convert(input.datetime, input.from_tz, input.to_tz, ctx);
+    // Reject out-of-range wall-clock dates (e.g. Feb 30) and DST spring-forward gaps against
+    // the now-validated source zone, rather than letting convert() silently normalize them.
+    const dtIssue = svc.validateConvertibleDatetime(input.datetime, resolvedFrom);
+    if (dtIssue) {
+      throw ctx.fail('invalid_datetime', dtIssue.message, { recovery: { hint: dtIssue.hint } });
+    }
+    return svc.convert(input.datetime, input.from_tz, input.to_tz, ctx);
   },
 
   format: (result) => {

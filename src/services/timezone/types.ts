@@ -28,3 +28,13 @@ export interface ConversionResult {
   };
   utc_equivalent: string;
 }
+
+/**
+ * A reason a format-valid local datetime cannot be converted from its source zone, paired
+ * with an actionable recovery hint. Returned by TimezoneService.validateConvertibleDatetime;
+ * the tool handler raises it as the `invalid_datetime` error.
+ */
+export interface DatetimeIssue {
+  hint: string;
+  message: string;
+}

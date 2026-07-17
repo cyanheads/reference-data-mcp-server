@@ -80,14 +80,85 @@ describe('refTimezoneConvert', () => {
     expect(() => refTimezoneConvert.handler(input, ctx)).toThrow(/Unrecognized.*timezone/i);
   });
 
-  it('throws for datetime with offset suffix', async () => {
+  it('rejects a datetime with an offset suffix at the input schema', () => {
+    // The regex on the datetime field advertises the format constraint in inputSchema and
+    // rejects a "Z"/offset suffix at parse time, before the handler runs.
+    expect(() =>
+      refTimezoneConvert.input.parse({
+        datetime: '2026-05-24T15:00:00Z', // Z suffix not allowed
+        from_tz: 'Asia/Tokyo',
+        to_tz: 'America/New_York',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects out-of-range calendar components instead of silently rolling over (#32)', () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    // Each of these is format-valid (passes the regex) but calendar-invalid — previously
+    // Date.UTC() normalized them to a different, silently-substituted date.
+    for (const datetime of [
+      '2026-02-30T12:00:00', // Feb 30 never exists
+      '2026-02-29T12:00:00', // 2026 is not a leap year
+      '2026-13-01T12:00:00', // month 13
+      '2026-05-32T12:00:00', // day 32
+      '2026-05-24T25:00:00', // hour 25
+    ]) {
+      const input = refTimezoneConvert.input.parse({
+        datetime,
+        from_tz: 'UTC',
+        to_tz: 'Asia/Tokyo',
+      });
+      expect(() => refTimezoneConvert.handler(input, ctx)).toThrow(/out-of-range calendar/i);
+    }
+  });
+
+  it('accepts a valid leap-year Feb 29 (control for the range check)', async () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    // 2028 is a leap year — Feb 29 is a real date and must still convert.
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2028-02-29T12:00:00',
+      from_tz: 'UTC',
+      to_tz: 'UTC',
+    });
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.source.datetime).toBe('2028-02-29T12:00:00');
+    expect(result.utc_equivalent).toBe('2028-02-29T12:00:00Z');
+  });
+
+  it('accepts the Dec 31 23:59:59 boundary (control for the range check)', async () => {
     const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     const input = refTimezoneConvert.input.parse({
-      datetime: '2026-05-24T15:00:00Z', // Z suffix not allowed
-      from_tz: 'Asia/Tokyo',
-      to_tz: 'America/New_York',
+      datetime: '2026-12-31T23:59:59',
+      from_tz: 'UTC',
+      to_tz: 'UTC',
     });
-    expect(() => refTimezoneConvert.handler(input, ctx)).toThrow(/Malformed datetime/);
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.utc_equivalent).toBe('2026-12-31T23:59:59Z');
+  });
+
+  it('rejects a DST spring-forward gap datetime that never occurs (#37)', () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    // 2026-03-08 02:30 does not exist in America/New_York — clocks jump 02:00 → 03:00.
+    // Previously this converted to a non-invertible result instead of being rejected.
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2026-03-08T02:30:00',
+      from_tz: 'America/New_York',
+      to_tz: 'UTC',
+    });
+    expect(() => refTimezoneConvert.handler(input, ctx)).toThrow(/spring-forward gap/i);
+  });
+
+  it('accepts a valid pre-transition time on the spring-forward date (control for #37)', async () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    // 01:30 exists (still EST, before the jump) and must convert normally.
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2026-03-08T01:30:00',
+      from_tz: 'America/New_York',
+      to_tz: 'UTC',
+    });
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.source.offset).toBe('-05:00'); // EST, before spring-forward
+    expect(result.target.datetime).toContain('06:30:00');
   });
 
   it('correct DST offset for time after spring-forward', async () => {

@@ -6,7 +6,7 @@
 
 import type { Context } from '@cyanheads/mcp-ts-core';
 import { getTimeZones } from '@vvo/tzdb';
-import type { ConversionResult, TimezoneRecord } from './types.js';
+import type { ConversionResult, DatetimeIssue, TimezoneRecord } from './types.js';
 
 /** Format UTC offset minutes as "+HH:MM" or "-HH:MM" */
 function formatOffset(offsetMinutes: number): string {
@@ -59,6 +59,24 @@ function formatLocalDatetime(d: Date): string {
     ':',
     String(d.getUTCSeconds()).padStart(2, '0'),
   ].join('');
+}
+
+/**
+ * Interpret a local wall-clock datetime as a UTC instant for a given zone, using two-step
+ * offset refinement so DST transitions resolve correctly: estimate the offset at the naive
+ * instant, then re-read it at the refined instant. Returns the UTC epoch ms and the resolved
+ * source-zone offset (minutes). Shared by convert() and the datetime pre-validation so the
+ * subtle two-pass logic lives in exactly one place.
+ */
+function localDatetimeToUtc(
+  c: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+  resolvedTz: string,
+): { utcMs: number; offsetMinutes: number } {
+  const approxUtcMs = Date.UTC(c.year, c.month - 1, c.day, c.hour, c.minute, c.second);
+  const firstOffsetMin = getIntlOffsetMinutes(resolvedTz, new Date(approxUtcMs));
+  const refinedUtcMs = approxUtcMs - firstOffsetMin * 60000;
+  const offsetMinutes = getIntlOffsetMinutes(resolvedTz, new Date(refinedUtcMs));
+  return { utcMs: approxUtcMs - offsetMinutes * 60000, offsetMinutes };
 }
 
 /** Get timezone abbreviation using Intl */
@@ -163,6 +181,62 @@ export class TimezoneService {
   /** Public wrapper for isValidIana — used by tool handlers for pre-validation */
   isValidIanaPublic(ianaId: string): boolean {
     return this.isValidIana(ianaId);
+  }
+
+  /**
+   * Validate that a format-checked local datetime is actually convertible from the source
+   * zone, catching two silent-corruption cases the raw Date.UTC() path in convert() would
+   * otherwise normalize away:
+   *   1. Out-of-range calendar components (e.g. 2026-02-30, month 13, hour 25) — Date.UTC
+   *      rolls these over, so round-trip the UTC getters against the parsed components.
+   *   2. DST spring-forward gap — a wall-clock instant skipped by the clock jumping forward,
+   *      which never physically occurs in the source zone. Interpret the input, then reformat
+   *      the resulting UTC instant back to local time in the same zone: a gap time round-trips
+   *      to a different wall clock. (Fall-back/ambiguous times round-trip to one of their two
+   *      valid instants and are intentionally allowed — spring-forward gaps only.)
+   *
+   * Returns null when convertible, or a DatetimeIssue for the handler to raise as
+   * invalid_datetime. Sibling of resolveIanaIdPublic / isValidIanaPublic — the handler calls
+   * it before convert(), and only after resolvedFromTz has passed isValidIanaPublic (an
+   * invalid zone would throw inside the Intl offset calls).
+   */
+  validateConvertibleDatetime(datetime: string, resolvedFromTz: string): DatetimeIssue | null {
+    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+    // Format is enforced by the tool's input schema; a mismatch here has nothing to add.
+    if (!match) return null;
+    const [, year = 0, month = 1, day = 1, hour = 0, minute = 0, second = 0] = match.map(Number);
+
+    // (1) Range / calendar validity — Date.UTC silently normalizes overflow, so compare back.
+    const asUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (
+      asUtc.getUTCFullYear() !== year ||
+      asUtc.getUTCMonth() !== month - 1 ||
+      asUtc.getUTCDate() !== day ||
+      asUtc.getUTCHours() !== hour ||
+      asUtc.getUTCMinutes() !== minute ||
+      asUtc.getUTCSeconds() !== second
+    ) {
+      return {
+        message: `Datetime "${datetime}" has out-of-range calendar components (e.g. month past 12, a day the month lacks such as February 30, or hour past 23).`,
+        hint: 'Use a real calendar date and 24-hour time, e.g. "2026-05-24T15:30:00".',
+      };
+    }
+
+    // (2) DST spring-forward gap — round-trip the interpreted instant back to local time.
+    const { utcMs } = localDatetimeToUtc(
+      { year, month, day, hour, minute, second },
+      resolvedFromTz,
+    );
+    const backOffsetMin = getIntlOffsetMinutes(resolvedFromTz, new Date(utcMs));
+    const roundTrip = formatLocalDatetime(new Date(utcMs + backOffsetMin * 60000));
+    if (roundTrip !== datetime) {
+      return {
+        message: `Datetime "${datetime}" falls in a daylight-saving spring-forward gap in ${resolvedFromTz} — the clock jumps forward, so this wall-clock time never occurs.`,
+        hint: 'Pick a time outside the skipped hour of the transition (the clock advances an hour, so times within it do not exist).',
+      };
+    }
+
+    return null;
   }
 
   /** Get timezones for a country code (alpha2) */
@@ -293,16 +367,13 @@ export class TimezoneService {
     }
     const [, year = 0, month = 1, day = 1, hour = 0, minute = 0, second = 0] = match.map(Number);
 
-    // Build the UTC timestamp by interpreting the local datetime in the source timezone.
-    // Two-step approach: initial estimate, then refine with the offset at the refined UTC time.
-    // This handles DST transitions (spring-forward) where the naive first-pass offset is wrong.
-    const approxUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
-    const approxDate = new Date(approxUtcMs);
-    const firstOffsetMin = getIntlOffsetMinutes(resolvedFrom, approxDate);
-    const refinedUtcMs = approxUtcMs - firstOffsetMin * 60000;
-    const refinedDate = new Date(refinedUtcMs);
-    const fromOffsetMin = getIntlOffsetMinutes(resolvedFrom, refinedDate);
-    const utcMs = approxUtcMs - fromOffsetMin * 60000;
+    // Interpret the local datetime in the source timezone as a UTC instant (two-step,
+    // DST-aware). Out-of-range and spring-forward-gap inputs are rejected upstream by the
+    // handler's validateConvertibleDatetime call, so this arithmetic runs on valid input.
+    const { utcMs, offsetMinutes: fromOffsetMin } = localDatetimeToUtc(
+      { year, month, day, hour, minute, second },
+      resolvedFrom,
+    );
     const utcDate = new Date(utcMs);
 
     // Format source datetime (the input) with its offset
