@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.15](changelog/0.1.x/0.1.15.md) — 2026-08-24
+
+Adopt @cyanheads/mcp-ts-core ^0.12.3: strict tool inputs, declared structured-error schemas, MCP 2026-07-28 HTTP support, public cache and recovery hints, stateless runtime alignment, Bun 1.4/TypeScript 7 tooling, and synced framework maintenance assets.
+
 ## [0.1.14](changelog/0.1.x/0.1.14.md) — 2026-07-16
 
 ref_timezone_convert rejects out-of-range and DST spring-forward-gap datetimes; ref_element_lookup accepts IUPAC/international spellings; ref_constant_lookup reports exact_name for name queries; unit_convert mt/t disambiguation and a README constant-count correction.

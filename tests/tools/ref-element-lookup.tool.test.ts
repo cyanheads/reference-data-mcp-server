@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refElementLookup } from '@/mcp-server/tools/definitions/ref-element-lookup.tool.js';
 import { initElementsService } from '@/services/elements/elements-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initElementsService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refElementLookup', () => {
   it('looks up Carbon by name', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'carbon' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.number).toBe(6);
@@ -29,7 +30,7 @@ describe('refElementLookup', () => {
   });
 
   it('looks up Tungsten by symbol', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'W', by: 'symbol' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.number).toBe(74);
@@ -38,7 +39,7 @@ describe('refElementLookup', () => {
   });
 
   it('looks up Gold by atomic number string', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: '79', by: 'number' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.number).toBe(79);
@@ -47,7 +48,7 @@ describe('refElementLookup', () => {
   });
 
   it('auto mode resolves by number first', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: '1' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.number).toBe(1);
@@ -55,7 +56,7 @@ describe('refElementLookup', () => {
   });
 
   it('returns null for sparse fields on synthetic elements', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     // Oganesson (118) — synthetic, very limited data
     const input = refElementLookup.input.parse({ query: '118', by: 'number' });
     const result = await refElementLookup.handler(input, ctx);
@@ -72,7 +73,7 @@ describe('refElementLookup', () => {
   });
 
   it('resolves the IUPAC spelling Aluminium via the auto branch (#34)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'Aluminium' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.symbol).toBe('Al');
@@ -81,7 +82,7 @@ describe('refElementLookup', () => {
   });
 
   it('resolves Caesium with explicit by:"name" (#34 — the branch most likely to be missed)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'Caesium', by: 'name' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.symbol).toBe('Cs');
@@ -89,7 +90,7 @@ describe('refElementLookup', () => {
   });
 
   it('resolves the British spelling Sulphur (#34)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'Sulphur' });
     const result = await refElementLookup.handler(input, ctx);
     expect(result.symbol).toBe('S');
@@ -97,7 +98,7 @@ describe('refElementLookup', () => {
   });
 
   it('leaves an unrelated fuzzy name lookup unaffected by the alias map (#34 control)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementLookup.errors });
     // A prefix fuzzy match with no alias-map entry must still resolve via startsWith.
     const input = refElementLookup.input.parse({ query: 'heliu' });
     const result = await refElementLookup.handler(input, ctx);
@@ -131,7 +132,7 @@ describe('refElementLookup', () => {
     };
     const blocks = refElementLookup.format!(output);
     expect(blocks.length).toBeGreaterThan(0);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('C');
     expect(text).toContain('Carbon');
     expect(text).toContain('Z=6');
@@ -164,7 +165,7 @@ describe('refElementLookup', () => {
       dataset_version: 'PubChem/IUPAC 2024',
     };
     const blocks = refElementLookup.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Known since antiquity');
     expect(text).not.toContain('Ancient by Ancient');
   });
@@ -194,7 +195,7 @@ describe('refElementLookup', () => {
       dataset_version: 'PubChem/IUPAC 2024',
     };
     const blocks = refElementLookup.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('N/A');
     expect(text).toContain('Og');
     expect(text).toContain('Oganesson');

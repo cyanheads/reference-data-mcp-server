@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { httpStatusCodes } from '@/data/http-status-codes.js';
 import { refHttpStatus } from '@/mcp-server/tools/definitions/ref-http-status.tool.js';
 import { initHttpStatusService } from '@/services/http-status/http-status-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initHttpStatusService();
@@ -15,7 +16,7 @@ beforeAll(() => {
 
 describe('refHttpStatus', () => {
   it('looks up 404 by numeric code string', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refHttpStatus.errors });
     const input = refHttpStatus.input.parse({ query: '404' });
     const result = await refHttpStatus.handler(input, ctx);
     expect(result.code).toBe(404);
@@ -26,7 +27,7 @@ describe('refHttpStatus', () => {
   });
 
   it('looks up 200 OK', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refHttpStatus.errors });
     const input = refHttpStatus.input.parse({ query: '200' });
     const result = await refHttpStatus.handler(input, ctx);
     expect(result.code).toBe(200);
@@ -36,7 +37,7 @@ describe('refHttpStatus', () => {
   });
 
   it('looks up 500 Internal Server Error', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refHttpStatus.errors });
     const input = refHttpStatus.input.parse({ query: '500' });
     const result = await refHttpStatus.handler(input, ctx);
     expect(result.code).toBe(500);
@@ -46,7 +47,7 @@ describe('refHttpStatus', () => {
   });
 
   it('keyword search returns primary match', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refHttpStatus.errors });
     const input = refHttpStatus.input.parse({ query: 'not found' });
     const result = await refHttpStatus.handler(input, ctx);
     expect(result.code).toBe(404);
@@ -54,7 +55,7 @@ describe('refHttpStatus', () => {
   });
 
   it('keyword search returns alternatives for broad terms', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refHttpStatus.errors });
     const input = refHttpStatus.input.parse({ query: 'redirect' });
     const result = await refHttpStatus.handler(input, ctx);
     expect(result.code).toBeGreaterThanOrEqual(300);
@@ -101,7 +102,7 @@ describe('refHttpStatus', () => {
       rfc_section: '15.5.5',
     };
     const blocks = refHttpStatus.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('404');
     expect(text).toContain('Not Found');
     expect(text).toContain('4xx Client Error');
@@ -124,7 +125,7 @@ describe('refHttpStatus', () => {
       ],
     };
     const blocks = refHttpStatus.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Other matches');
     expect(text).toContain('302');
     expect(text).toContain('Found');
@@ -136,15 +137,15 @@ describe('refHttpStatus', () => {
     { code: '405', reason: 'Method Not Allowed', cacheable: true },
     { code: '304', reason: 'Not Modified', cacheable: false },
     { code: '226', reason: 'IM Used', cacheable: false },
-  ])('reports cacheable=$cacheable for $code ($reason) per RFC 9110 §15.1', async ({
-    code,
-    cacheable,
-  }) => {
-    const ctx = createMockContext();
-    const input = refHttpStatus.input.parse({ query: code });
-    const result = await refHttpStatus.handler(input, ctx);
-    expect(result.cacheable).toBe(cacheable);
-  });
+  ])(
+    'reports cacheable=$cacheable for $code ($reason) per RFC 9110 §15.1',
+    async ({ code, cacheable }) => {
+      const ctx = createMockContext({ errors: refHttpStatus.errors });
+      const input = refHttpStatus.input.parse({ query: code });
+      const result = await refHttpStatus.handler(input, ctx);
+      expect(result.cacheable).toBe(cacheable);
+    },
+  );
 
   it('cacheable flags match the RFC 9110 §15.1 heuristically-cacheable set exactly', () => {
     // The set the `cacheable` field encodes: statuses reusable by a cache with heuristic expiration.

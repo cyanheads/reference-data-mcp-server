@@ -83,12 +83,14 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
       throw ctx.fail(
         'invalid_timezone',
         `Unrecognized source timezone "${input.from_tz}". Use ref_timezone_lookup to find the correct IANA ID.`,
+        ctx.recoveryFor('invalid_timezone'),
       );
     }
     if (!svc.isValidIanaPublic(resolvedTo)) {
       throw ctx.fail(
         'invalid_timezone',
         `Unrecognized target timezone "${input.to_tz}". Use ref_timezone_lookup to find the correct IANA ID.`,
+        ctx.recoveryFor('invalid_timezone'),
       );
     }
     // Reject out-of-range wall-clock dates (e.g. Feb 30) and DST spring-forward gaps against

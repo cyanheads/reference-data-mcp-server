@@ -64,6 +64,7 @@ export const refMimeType = tool('ref_mime_type', {
       throw ctx.fail(
         'no_match',
         'Empty query. Provide a MIME type string (e.g., "image/webp") or file extension (e.g., ".webp").',
+        ctx.recoveryFor('no_match'),
       );
     }
     const result = getMimeService().lookup(input.query, ctx);
@@ -72,7 +73,7 @@ export const refMimeType = tool('ref_mime_type', {
       const msg = normalized.includes('/')
         ? `MIME type "${input.query}" not found. Check spelling or use the full IANA type string (e.g., "application/json").`
         : `No MIME type found for extension "${input.query}". Check spelling or use the full IANA type string (e.g., "image/jpeg"). Common extensions: js, ts, json, html, css, png, jpg, pdf.`;
-      throw ctx.fail('no_match', msg);
+      throw ctx.fail('no_match', msg, ctx.recoveryFor('no_match'));
     }
     return result;
   },

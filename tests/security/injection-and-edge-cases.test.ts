@@ -31,6 +31,7 @@ import { initHttpStatusService } from '@/services/http-status/http-status-servic
 import { initMimeService } from '@/services/mime/mime-service.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
 import { initUnitsService } from '@/services/units/units-service.js';
+import { expectSync } from '../test-helpers.js';
 
 beforeAll(() => {
   initTimezoneService();
@@ -136,7 +137,7 @@ describe('security — geo tools', () => {
     // Throws (no filter match) or returns empty results — neither should crash
     let result: { results: unknown[] } | undefined;
     try {
-      result = refGeoSearch.handler(input, ctx);
+      result = expectSync(refGeoSearch.handler(input, ctx));
     } catch {
       // throwing is acceptable
       return;
@@ -150,7 +151,7 @@ describe('security — geo tools', () => {
     // Should either return empty results or throw cleanly
     let result: { results: unknown[] } | undefined;
     try {
-      result = refGeoSearch.handler(input, ctx);
+      result = expectSync(refGeoSearch.handler(input, ctx));
     } catch {
       return;
     }
@@ -202,7 +203,7 @@ describe('security — element tools', () => {
     const ctx = createMockContext({ errors: refElementSearch.errors });
     const input = refElementSearch.input.parse({ category: HTML_INJECTION });
     // Handler may return empty results (no match for HTML string as category)
-    const result = refElementSearch.handler(input, ctx);
+    const result = expectSync(refElementSearch.handler(input, ctx));
     expect(result.results).toBeInstanceOf(Array);
     // Result categories should not contain raw HTML
     const text = JSON.stringify(result.results);
@@ -415,15 +416,15 @@ describe('security — unit convert tool', () => {
 describe('security — resources', () => {
   it('ref_countries resource: path traversal in alpha2 throws NotFound, not crash', () => {
     const ctx = createMockContext();
-    const params = refCountriesResource.params.parse({ alpha2: PATH_TRAVERSAL });
+    const params = refCountriesResource.params!.parse({ alpha2: PATH_TRAVERSAL });
     expect(() => refCountriesResource.handler(params, ctx)).toThrow();
   });
 
   it('ref_countries resource: output does not contain raw injection payload', () => {
     const ctx = createMockContext();
     // Valid country — verify its output is clean
-    const params = refCountriesResource.params.parse({ alpha2: 'US' });
-    const result = refCountriesResource.handler(params, ctx);
+    const params = refCountriesResource.params!.parse({ alpha2: 'US' });
+    const result = expectSync(refCountriesResource.handler(params, ctx));
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('<script>');
     expect(serialized).not.toContain('DROP TABLE');
@@ -432,20 +433,20 @@ describe('security — resources', () => {
 
   it('ref_elements resource: HTML injection in number throws NotFound', () => {
     const ctx = createMockContext();
-    const params = refElementsResource.params.parse({ number: HTML_INJECTION });
+    const params = refElementsResource.params!.parse({ number: HTML_INJECTION });
     expect(() => refElementsResource.handler(params, ctx)).toThrow();
   });
 
   it('ref_elements resource: oversized string in number throws NotFound', () => {
     const ctx = createMockContext();
-    const params = refElementsResource.params.parse({ number: OVERSIZED_STRING });
+    const params = refElementsResource.params!.parse({ number: OVERSIZED_STRING });
     expect(() => refElementsResource.handler(params, ctx)).toThrow();
   });
 
   it('ref_elements resource: valid output does not contain injection payloads', () => {
     const ctx = createMockContext();
-    const params = refElementsResource.params.parse({ number: '6' });
-    const result = refElementsResource.handler(params, ctx);
+    const params = refElementsResource.params!.parse({ number: '6' });
+    const result = expectSync(refElementsResource.handler(params, ctx));
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('<script>');
     expect(serialized).not.toContain('DROP TABLE');
@@ -454,14 +455,14 @@ describe('security — resources', () => {
 
   it('ref_timezones resource: HTML injection in iana_id throws NotFound', () => {
     const ctx = createMockContext();
-    const params = refTimezonesResource.params.parse({ iana_id: HTML_INJECTION });
+    const params = refTimezonesResource.params!.parse({ iana_id: HTML_INJECTION });
     expect(() => refTimezonesResource.handler(params, ctx)).toThrow();
   });
 
   it('ref_timezones resource: valid output does not contain injection payloads', () => {
     const ctx = createMockContext();
-    const params = refTimezonesResource.params.parse({ iana_id: 'UTC' });
-    const result = refTimezonesResource.handler(params, ctx);
+    const params = refTimezonesResource.params!.parse({ iana_id: 'UTC' });
+    const result = expectSync(refTimezonesResource.handler(params, ctx));
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('<script>');
     expect(serialized).not.toContain('DROP TABLE');
@@ -470,7 +471,7 @@ describe('security — resources', () => {
 
   it('ref_timezones slash-catch resource: injection in region/city always throws', () => {
     const ctx = createMockContext();
-    const params = refTimezonesSlashCatchResource.params.parse({
+    const params = refTimezonesSlashCatchResource.params!.parse({
       region: HTML_INJECTION,
       city: SQL_INJECTION,
     });
@@ -508,7 +509,7 @@ describe('security — prototype pollution invariants', () => {
 describe('security — no internal paths in successful output', () => {
   it('ref_geo_lookup success output does not contain internal src paths', () => {
     const ctx = createMockContext({ errors: refGeoLookup.errors });
-    const result = refGeoLookup.handler(refGeoLookup.input.parse({ query: 'DE' }), ctx);
+    const result = expectSync(refGeoLookup.handler(refGeoLookup.input.parse({ query: 'DE' }), ctx));
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/\/src\/services\//);
     expect(serialized).not.toMatch(/\/src\/mcp-server\//);
@@ -516,7 +517,9 @@ describe('security — no internal paths in successful output', () => {
 
   it('ref_element_lookup success output does not contain internal src paths', () => {
     const ctx = createMockContext({ errors: refElementLookup.errors });
-    const result = refElementLookup.handler(refElementLookup.input.parse({ query: 'carbon' }), ctx);
+    const result = expectSync(
+      refElementLookup.handler(refElementLookup.input.parse({ query: 'carbon' }), ctx),
+    );
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/\/src\/services\//);
     expect(serialized).not.toMatch(/\/src\/mcp-server\//);
@@ -524,7 +527,9 @@ describe('security — no internal paths in successful output', () => {
 
   it('ref_http_status success output does not contain internal src paths', () => {
     const ctx = createMockContext({ errors: refHttpStatus.errors });
-    const result = refHttpStatus.handler(refHttpStatus.input.parse({ query: '200' }), ctx);
+    const result = expectSync(
+      refHttpStatus.handler(refHttpStatus.input.parse({ query: '200' }), ctx),
+    );
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/\/src\/services\//);
     expect(serialized).not.toMatch(/\/src\/mcp-server\//);
@@ -532,7 +537,9 @@ describe('security — no internal paths in successful output', () => {
 
   it('ref_mime_type success output does not contain internal src paths', () => {
     const ctx = createMockContext({ errors: refMimeType.errors });
-    const result = refMimeType.handler(refMimeType.input.parse({ query: 'application/json' }), ctx);
+    const result = expectSync(
+      refMimeType.handler(refMimeType.input.parse({ query: 'application/json' }), ctx),
+    );
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/\/src\/services\//);
     expect(serialized).not.toMatch(/\/src\/mcp-server\//);

@@ -142,6 +142,7 @@ export const refElementSearch = tool('ref_element_search', {
       throw ctx.fail(
         'no_filters',
         'At least one filter is required. Provide category, group, period, atomic_number_range, or atomic_mass_range.',
+        ctx.recoveryFor('no_filters'),
       );
     }
 

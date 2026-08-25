@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { refGeoSearch } from '@/mcp-server/tools/definitions/ref-geo-search.tool.js';
 import { initGeoService } from '@/services/geo/geo-service.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
+import { expectNumber, expectRecord, expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initTimezoneService();
@@ -16,54 +17,54 @@ beforeAll(() => {
 
 describe('refGeoSearch', () => {
   it('searches by region', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ region: 'Oceania' });
     const result = await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
-    expect(enrichment.totalMatches).toBeGreaterThan(0);
+    expect(expectNumber(enrichment.totalMatches)).toBeGreaterThan(0);
     expect(result.results.every((c) => c.region === 'Oceania')).toBe(true);
     // Oceania has ~20 countries, default limit is 20 so may not be truncated
     expect(typeof enrichment.truncated).toBe('boolean');
   });
 
   it('searches by language code', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ language: 'pt' });
     const result = await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
-    expect(enrichment.totalMatches).toBeGreaterThan(0);
+    expect(expectNumber(enrichment.totalMatches)).toBeGreaterThan(0);
     // Should include Brazil and Portugal at minimum
     const names = result.results.map((c) => c.name);
     expect(names.some((n) => n.includes('Brazil') || n.includes('Portugal'))).toBe(true);
   });
 
   it('searches by currency', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ currency: 'EUR' });
     await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
-    expect(enrichment.totalMatches).toBeGreaterThan(0);
+    expect(expectNumber(enrichment.totalMatches)).toBeGreaterThan(0);
     // EUR is used by many EU countries
-    expect(enrichment.totalMatches).toBeGreaterThan(5);
+    expect(expectNumber(enrichment.totalMatches)).toBeGreaterThan(5);
   });
 
   it('applies limit correctly', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ region: 'Americas', limit: 5 });
     const result = await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
     expect(result.results.length).toBeLessThanOrEqual(5);
-    if (enrichment.totalMatches > 5) {
+    if (expectNumber(enrichment.totalMatches) > 5) {
       expect(enrichment.truncated).toBe(true);
     }
   });
 
   it('searches by keyword matching capital', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ keyword: 'Tokyo' });
     const result = await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
-    expect(enrichment.totalMatches).toBeGreaterThan(0);
+    expect(expectNumber(enrichment.totalMatches)).toBeGreaterThan(0);
     const names = result.results.map((c) => c.name);
     expect(names).toContain('Japan');
   });
@@ -98,23 +99,24 @@ describe('refGeoSearch', () => {
   });
 
   it('sets notice enrichment with no results', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ region: 'Oceania', language: 'de' });
     const result = await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
     // German-speaking countries are not in Oceania
-    expect(enrichment.totalMatches).toBe(0);
+    expect(expectNumber(enrichment.totalMatches)).toBe(0);
     expect(result.results).toHaveLength(0);
     expect(enrichment.notice).toBeTruthy();
   });
 
   it('appliedFilters enrichment echoes active filters', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refGeoSearch.errors });
     const input = refGeoSearch.input.parse({ region: 'Europe', limit: 10 });
     await refGeoSearch.handler(input, ctx);
     const enrichment = getEnrichment(ctx);
-    expect(enrichment.appliedFilters.region).toBe('Europe');
-    expect(enrichment.appliedFilters.limit).toBe(10);
+    const appliedFilters = expectRecord(enrichment.appliedFilters);
+    expect(appliedFilters.region).toBe('Europe');
+    expect(appliedFilters.limit).toBe(10);
   });
 
   it('formats results with flags, names, and codes', () => {
@@ -141,7 +143,7 @@ describe('refGeoSearch', () => {
       ],
     };
     const blocks = refGeoSearch.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Germany');
     expect(text).toContain('DE');
     expect(text).toContain('France');

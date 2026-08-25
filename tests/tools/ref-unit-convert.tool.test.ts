@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refUnitConvert } from '@/mcp-server/tools/definitions/ref-unit-convert.tool.js';
 import { initUnitsService } from '@/services/units/units-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initUnitsService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refUnitConvert', () => {
   it('converts kilometers to miles', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 1, from: 'km', to: 'mi' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.value).toBe(1);
@@ -26,7 +27,7 @@ describe('refUnitConvert', () => {
   });
 
   it('converts kilograms to pounds', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 1, from: 'kg', to: 'lb' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.result).toBeCloseTo(2.20462, 3);
@@ -34,7 +35,7 @@ describe('refUnitConvert', () => {
   });
 
   it('converts Celsius to Fahrenheit (non-linear)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 0, from: 'C', to: 'F' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.result).toBeCloseTo(32, 2);
@@ -42,14 +43,14 @@ describe('refUnitConvert', () => {
   });
 
   it('converts 100 Celsius to Fahrenheit', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 100, from: 'C', to: 'F' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.result).toBeCloseTo(212, 2);
   });
 
   it('converts liters to gallons', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 1, from: 'l', to: 'gal' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.result).toBeCloseTo(0.264172, 4);
@@ -57,7 +58,7 @@ describe('refUnitConvert', () => {
   });
 
   it('converts watts to kilowatts', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 1000, from: 'W', to: 'kW' });
     const result = await refUnitConvert.handler(input, ctx);
     expect(result.result).toBeCloseTo(1, 4);
@@ -120,7 +121,7 @@ describe('refUnitConvert', () => {
       measure: 'length',
     };
     const blocks = refUnitConvert.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('1 km');
     expect(text).toContain('mi');
     expect(text).toContain('0.6214');

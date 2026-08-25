@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refMimeType } from '@/mcp-server/tools/definitions/ref-mime-type.tool.js';
 import { initMimeService } from '@/services/mime/mime-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initMimeService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refMimeType', () => {
   it('looks up application/json by type string', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'application/json' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('application/json');
@@ -24,7 +25,7 @@ describe('refMimeType', () => {
   });
 
   it('looks up by file extension with leading dot', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: '.json' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('application/json');
@@ -32,7 +33,7 @@ describe('refMimeType', () => {
   });
 
   it('looks up by file extension without dot', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'html' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toContain('html');
@@ -40,14 +41,14 @@ describe('refMimeType', () => {
   });
 
   it('resolves .jpg to image/jpeg', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: '.jpg' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('image/jpeg');
   });
 
   it('looks up image/png', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'image/png' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('image/png');
@@ -57,7 +58,7 @@ describe('refMimeType', () => {
 
   it('handles sparse payload — type with no extensions', async () => {
     // Some MIME types have no registered extensions
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'application/octet-stream' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('application/octet-stream');
@@ -67,14 +68,14 @@ describe('refMimeType', () => {
   });
 
   it('strips MIME parameters and resolves the base type', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'text/plain; charset=utf-8' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('text/plain');
   });
 
   it('strips MIME parameters for application/json', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refMimeType.errors });
     const input = refMimeType.input.parse({ query: 'application/json; charset=utf-8' });
     const result = await refMimeType.handler(input, ctx);
     expect(result.type).toBe('application/json');
@@ -112,7 +113,7 @@ describe('refMimeType', () => {
       source: 'iana',
     };
     const blocks = refMimeType.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('application/json');
     expect(text).toContain('.json');
     expect(text).toContain('Yes');
@@ -127,7 +128,7 @@ describe('refMimeType', () => {
       source: 'iana',
     };
     const blocks = refMimeType.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Unknown');
   });
 
@@ -140,7 +141,7 @@ describe('refMimeType', () => {
       alternatives: [{ type: 'application/javascript', source: 'iana' }],
     };
     const blocks = refMimeType.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Alternative types');
     expect(text).toContain('application/javascript');
   });

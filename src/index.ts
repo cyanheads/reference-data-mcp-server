@@ -35,6 +35,12 @@ import { initUnitsService } from './services/units/units-service.js';
 await createApp({
   name: 'reference-data-mcp-server',
   title: 'reference-data-mcp-server',
+  cacheHints: {
+    'tools/list': { ttlMs: 3_600_000, cacheScope: 'public' },
+    'resources/list': { ttlMs: 3_600_000, cacheScope: 'public' },
+    'resources/templates/list': { ttlMs: 3_600_000, cacheScope: 'public' },
+    'server/discover': { ttlMs: 3_600_000, cacheScope: 'public' },
+  },
   tools: [
     refGeoLookup,
     refGeoSearch,

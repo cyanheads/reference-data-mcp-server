@@ -12,6 +12,7 @@ export const refElementsResource = resource('ref://elements/{number}', {
   description:
     'Full periodic table element record by atomic number (e.g., ref://elements/6 for Carbon). Returns all properties: symbol, name, atomic mass, electron configuration, group, period, block, category, electronegativity, density, melting/boiling points, and discovery data.',
   mimeType: 'application/json',
+  cacheHint: { ttlMs: 86_400_000, cacheScope: 'public' },
 
   params: z.object({
     number: z

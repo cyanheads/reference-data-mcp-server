@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refTimezoneConvert } from '@/mcp-server/tools/definitions/ref-timezone-convert.tool.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initTimezoneService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refTimezoneConvert', () => {
   it('converts Tokyo time to New York time', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     const input = refTimezoneConvert.input.parse({
       datetime: '2026-05-24T15:30:00',
       from_tz: 'Asia/Tokyo',
@@ -32,7 +33,7 @@ describe('refTimezoneConvert', () => {
   });
 
   it('converts UTC to London', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     const input = refTimezoneConvert.input.parse({
       datetime: '2026-01-15T12:00:00',
       from_tz: 'UTC',
@@ -46,7 +47,7 @@ describe('refTimezoneConvert', () => {
   });
 
   it('handles cross-midnight conversion', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     // 22:00 in Tokyo = early morning in New York
     const input = refTimezoneConvert.input.parse({
       datetime: '2026-05-24T22:00:00',
@@ -211,7 +212,7 @@ describe('refTimezoneConvert', () => {
       utc_equivalent: '2026-05-24T06:30:00.000Z',
     };
     const blocks = refTimezoneConvert.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('Asia/Tokyo');
     expect(text).toContain('America/New_York');
     expect(text).toContain('+09:00');

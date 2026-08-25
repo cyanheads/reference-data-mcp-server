@@ -12,6 +12,7 @@ export const refCountriesResource = resource('ref://countries/{alpha2}', {
   description:
     'Full country record by ISO alpha-2 code (e.g., ref://countries/DE for Germany). Returns all fields including capital, region, languages, currencies, calling codes, TLD, flag, and timezone IDs.',
   mimeType: 'application/json',
+  cacheHint: { ttlMs: 86_400_000, cacheScope: 'public' },
 
   params: z.object({
     alpha2: z

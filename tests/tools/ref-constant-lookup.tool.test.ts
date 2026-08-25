@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refConstantLookup } from '@/mcp-server/tools/definitions/ref-constant-lookup.tool.js';
 import { initConstantsService } from '@/services/constants/constants-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initConstantsService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refConstantLookup', () => {
   it('returns speed of light by exact name', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'speed of light' });
     const result = await refConstantLookup.handler(input, ctx);
     expect(result.name).toContain('light');
@@ -25,7 +26,7 @@ describe('refConstantLookup', () => {
   });
 
   it('resolves by symbol shorthand', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'c' });
     const result = await refConstantLookup.handler(input, ctx);
     // speed of light symbol is 'c'
@@ -34,7 +35,7 @@ describe('refConstantLookup', () => {
   });
 
   it('reports match_strategy "exact_symbol" for a case-sensitive symbol hit', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     // Capital G is the gravitational constant — a case-sensitive symbol match.
     const input = refConstantLookup.input.parse({ query: 'G' });
     const result = await refConstantLookup.handler(input, ctx);
@@ -43,14 +44,14 @@ describe('refConstantLookup', () => {
   });
 
   it('reports match_strategy "exact_name" for an exact name/alias hit', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'speed of light' });
     const result = await refConstantLookup.handler(input, ctx);
     expect(result.match_strategy).toBe('exact_name');
   });
 
   it('reports match_strategy "fuzzy" for a partial query', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     // "electron" is not an exact constant name — it partial-matches several.
     const input = refConstantLookup.input.parse({ query: 'electron' });
     const result = await refConstantLookup.handler(input, ctx);
@@ -58,7 +59,7 @@ describe('refConstantLookup', () => {
   });
 
   it('resolves Planck constant by name', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'Planck constant' });
     const result = await refConstantLookup.handler(input, ctx);
     expect(result.name.toLowerCase()).toContain('planck');
@@ -69,7 +70,7 @@ describe('refConstantLookup', () => {
   });
 
   it('labels a mixed-case name query exact_name, not exact_symbol (#38)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     // "Rydberg constant" is a capitalized name alias — before #38 it resolved through the
     // case-sensitive symbol index and was mislabeled exact_symbol.
     const byName = await refConstantLookup.handler(
@@ -89,7 +90,7 @@ describe('refConstantLookup', () => {
   });
 
   it('returns exact: true for defined constants', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'speed of light' });
     const result = await refConstantLookup.handler(input, ctx);
     expect(result.exact).toBe(true);
@@ -128,7 +129,7 @@ describe('refConstantLookup', () => {
   });
 
   it('returns related constants for fuzzy match', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'electron' });
     const result = await refConstantLookup.handler(input, ctx);
     // "electron" should fuzzy-match several electron-related constants
@@ -154,7 +155,7 @@ describe('refConstantLookup', () => {
     const blocks = refConstantLookup.format!(output);
     expect(blocks.length).toBeGreaterThan(0);
     expect(blocks[0]!.type).toBe('text');
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('speed of light in vacuum');
     expect(text).toContain('299792458');
     expect(text).toContain('m s⁻¹');
@@ -180,13 +181,13 @@ describe('refConstantLookup', () => {
       related: [],
     };
     const blocks = refConstantLookup.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).not.toContain('Related constants');
     expect(text).toContain('fuzzy');
   });
 
   it('molar volume of ideal gas carries the 1 atm value with a matching pressure label', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'molar volume' });
     const result = await refConstantLookup.handler(input, ctx);
     expect(result.name).toBe('molar volume of ideal gas (STP)');
@@ -196,7 +197,7 @@ describe('refConstantLookup', () => {
   });
 
   it('drops single-letter/substring false positives from related[] (molar volume)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'molar volume' });
     const result = await refConstantLookup.handler(input, ctx);
     const relatedNames = result.related.map((r) => r.name);
@@ -209,7 +210,7 @@ describe('refConstantLookup', () => {
   });
 
   it('keeps genuine related constants for speed of light (shared {vacuum} token)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     const input = refConstantLookup.input.parse({ query: 'speed of light' });
     const result = await refConstantLookup.handler(input, ctx);
     const relatedNames = result.related.map((r) => r.name);
@@ -226,7 +227,7 @@ describe('refConstantLookup', () => {
   });
 
   it('drops the domain-generic "constant" token so "X constant" entries no longer collide (#36)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     // Before #36: "constant" appeared in 14 of 32 names but was not a stopword, so
     // any two "X constant" entries scored ≥1 on that shared word alone and returned
     // the first three "constant"-named entries in dataset array order.
@@ -245,7 +246,7 @@ describe('refConstantLookup', () => {
   });
 
   it('preserves genuine "constant" relations that share a real domain token (#36)', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refConstantLookup.errors });
     // Planck ↔ reduced Planck via the shared "planck" token — must survive.
     const planck = await refConstantLookup.handler(
       refConstantLookup.input.parse({ query: 'Planck constant' }),

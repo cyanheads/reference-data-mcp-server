@@ -7,6 +7,7 @@ import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refTimezoneLookup } from '@/mcp-server/tools/definitions/ref-timezone-lookup.tool.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
+import { expectText } from '../test-helpers.js';
 
 beforeAll(() => {
   initTimezoneService();
@@ -14,7 +15,7 @@ beforeAll(() => {
 
 describe('refTimezoneLookup', () => {
   it('looks up America/New_York by exact IANA ID', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     const input = refTimezoneLookup.input.parse({ query: 'America/New_York', by: 'iana' });
     const result = await refTimezoneLookup.handler(input, ctx);
     expect(result.timezones).toHaveLength(1);
@@ -24,7 +25,7 @@ describe('refTimezoneLookup', () => {
   });
 
   it('looks up timezones for a country code', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     const input = refTimezoneLookup.input.parse({ query: 'JP', by: 'country' });
     const result = await refTimezoneLookup.handler(input, ctx);
     expect(result.timezones.length).toBeGreaterThan(0);
@@ -32,7 +33,7 @@ describe('refTimezoneLookup', () => {
   });
 
   it('auto mode resolves Tokyo by city name', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     const input = refTimezoneLookup.input.parse({ query: 'Tokyo' });
     const result = await refTimezoneLookup.handler(input, ctx);
     expect(result.timezones.length).toBeGreaterThan(0);
@@ -42,7 +43,7 @@ describe('refTimezoneLookup', () => {
   });
 
   it('accepts at parameter for historical evaluation', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     // January is winter — EDT not active in New York
     const input = refTimezoneLookup.input.parse({
       query: 'America/New_York',
@@ -55,7 +56,7 @@ describe('refTimezoneLookup', () => {
   });
 
   it('accepts at parameter for summer DST evaluation', async () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     // July — EDT is active in New York (UTC-4)
     const input = refTimezoneLookup.input.parse({
       query: 'America/New_York',
@@ -106,7 +107,7 @@ describe('refTimezoneLookup', () => {
       evaluated_at: '2026-07-15T12:00:00.000Z',
     };
     const blocks = refTimezoneLookup.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('America/New_York');
     expect(text).toContain('-4');
     expect(text).toContain('-5');
@@ -143,7 +144,7 @@ describe('refTimezoneLookup', () => {
       evaluated_at: '2026-01-15T12:00:00.000Z',
     };
     const blocks = refTimezoneLookup.format!(output);
-    const text = blocks[0]!.text as string;
+    const text = expectText(blocks);
     expect(text).toContain('America/New_York');
     expect(text).toContain('America/Chicago');
     expect(text).toContain('Chicago');

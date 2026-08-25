@@ -190,7 +190,7 @@ Static JSON/TypeScript consts in `src/data/` are the right choice for datasets t
 **Output:** Array of country summaries with `total_matches` count. If `total_matches > limit`, indicates results are truncated.
 
 **Errors:**
-- `no_filters` (InvalidParams) — no filter or keyword provided. Recovery: provide at least one of keyword, region, language, or currency.
+- `no_filters` (ValidationError) — no filter or keyword provided. Recovery: provide at least one of keyword, region, language, or currency.
 - `no_match` (NotFound) — no countries matched the filters. Recovery: broaden or remove a filter.
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
@@ -227,8 +227,8 @@ Static JSON/TypeScript consts in `src/data/` are the right choice for datasets t
 **Output:** `{ source: { datetime, tz, offset }, target: { datetime, tz, offset }, utc_equivalent }`. Both local datetimes plus the UTC equivalent so callers can chain.
 
 **Errors:**
-- `invalid_timezone` (InvalidParams) — unrecognized timezone ID. Recovery: use `ref_timezone_lookup` to find the correct IANA ID.
-- `invalid_datetime` (InvalidParams) — malformed datetime string. Recovery: use ISO 8601 without timezone offset, e.g., "2026-05-24T15:30:00".
+- `invalid_timezone` (ValidationError) — unrecognized timezone ID. Recovery: use `ref_timezone_lookup` to find the correct IANA ID.
+- `invalid_datetime` (ValidationError) — malformed datetime string. Recovery: use ISO 8601 without timezone offset, e.g., "2026-05-24T15:30:00".
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
 
@@ -267,7 +267,7 @@ At least one filter required.
 **Output:** Array of element summaries. `total_matches` count included. If empty, suggests broadening the filter.
 
 **Errors:**
-- `no_filters` (InvalidParams) — no filter provided
+- `no_filters` (ValidationError) — no filter provided
 - `no_match` (NotFound) — no elements matched
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
@@ -302,8 +302,8 @@ At least one filter required.
 **Output:** `{ value, from_unit, to_unit, result, result_precision }`. Result is a full-precision float; `result_precision` is a human-friendly rounded form.
 
 **Errors:**
-- `incompatible_units` (InvalidParams) — units measure different quantities. Recovery: check that from and to units measure the same physical quantity (e.g., both length, both mass). Error message names the quantity each unit measures.
-- `unknown_unit` (InvalidParams) — unrecognized unit string. Recovery: error message lists supported units for the closest quantity category.
+- `incompatible_units` (ValidationError) — units measure different quantities. Recovery: check that from and to units measure the same physical quantity (e.g., both length, both mass). Error message names the quantity each unit measures.
+- `unknown_unit` (ValidationError) — unrecognized unit string. Recovery: error message lists supported units for the closest quantity category.
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
 

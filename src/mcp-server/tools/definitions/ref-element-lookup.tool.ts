@@ -112,13 +112,18 @@ export const refElementLookup = tool('ref_element_lookup', {
 
   handler(input, ctx) {
     if (!input.query.trim()) {
-      throw ctx.fail('no_match', 'Empty query. Provide an element name, symbol, or atomic number.');
+      throw ctx.fail(
+        'no_match',
+        'Empty query. Provide an element name, symbol, or atomic number.',
+        ctx.recoveryFor('no_match'),
+      );
     }
     const el = getElementsService().lookup(input.query, input.by, ctx);
     if (!el) {
       throw ctx.fail(
         'no_match',
         `No element matched "${input.query}". Use ref_element_search to browse by category, or check the IUPAC name or symbol spelling.`,
+        ctx.recoveryFor('no_match'),
       );
     }
     return {

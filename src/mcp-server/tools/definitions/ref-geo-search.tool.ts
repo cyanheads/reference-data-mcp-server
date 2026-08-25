@@ -140,6 +140,7 @@ export const refGeoSearch = tool('ref_geo_search', {
       throw ctx.fail(
         'no_filters',
         'At least one search filter is required. Provide keyword, region, subregion, language, or currency.',
+        ctx.recoveryFor('no_filters'),
       );
     }
 

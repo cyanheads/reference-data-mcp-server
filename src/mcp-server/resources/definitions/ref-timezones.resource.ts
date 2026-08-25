@@ -4,7 +4,7 @@
  */
 
 import { resource, z } from '@cyanheads/mcp-ts-core';
-import { invalidParams, notFound } from '@cyanheads/mcp-ts-core/errors';
+import { notFound, validationError } from '@cyanheads/mcp-ts-core/errors';
 import { getTimezoneService } from '@/services/timezone/timezone-service.js';
 
 /**
@@ -30,7 +30,7 @@ export const refTimezonesSlashCatchResource = resource('ref://timezones/{region}
   handler(params) {
     const ianaId = `${params.region}/${params.city}`;
     const encoded = `${encodeURIComponent(params.region)}%2F${encodeURIComponent(params.city)}`;
-    throw invalidParams(
+    throw validationError(
       `Timezone URI contains an unencoded slash. Use: ref://timezones/${encoded} (IANA ID: "${ianaId}").`,
       { iana_id: ianaId, encoded_uri: `ref://timezones/${encoded}` },
     );
@@ -42,6 +42,7 @@ export const refTimezonesResource = resource('ref://timezones/{iana_id}', {
   description:
     'Timezone info by IANA ID (URL-encode slashes as %2F, e.g., ref://timezones/America%2FNew_York). Returns current offset, standard offset, DST status, major cities, and country codes.',
   mimeType: 'application/json',
+  cacheHint: { ttlMs: 60_000, cacheScope: 'public' },
 
   params: z.object({
     iana_id: z
