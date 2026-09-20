@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.16](changelog/0.1.x/0.1.16.md) — 2026-09-20 · ⚠️ Breaking
+
+Adopt @cyanheads/mcp-ts-core ^0.13.6: the Bun floor rises to 1.4.0, the development skill tree moves to framework-skills/ so plugin installs no longer pick it up, and tool error text now closes with the reason term a caller can branch on.
+
 ## [0.1.15](changelog/0.1.x/0.1.15.md) — 2026-08-24
 
 Adopt @cyanheads/mcp-ts-core ^0.12.3: strict tool inputs, declared structured-error schemas, MCP 2026-07-28 HTTP support, public cache and recovery hints, stateless runtime alignment, Bun 1.4/TypeScript 7 tooling, and synced framework maintenance assets.
