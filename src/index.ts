@@ -35,6 +35,8 @@ import { initUnitsService } from './services/units/units-service.js';
 await createApp({
   name: 'reference-data-mcp-server',
   title: 'reference-data-mcp-server',
+  // No tool gates on ctx.requestInput, so no HTTP session state is needed.
+  sessionMode: 'stateless',
   cacheHints: {
     'tools/list': { ttlMs: 3_600_000, cacheScope: 'public' },
     'resources/list': { ttlMs: 3_600_000, cacheScope: 'public' },
