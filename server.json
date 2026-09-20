@@ -6,14 +6,20 @@
     "url": "https://github.com/cyanheads/reference-data-mcp-server.git",
     "source": "github"
   },
-  "version": "0.1.15",
+  "version": "0.1.16",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://reference-data.caseyjhand.com/mcp"
+    }
+  ],
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/reference-data-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.15",
+      "version": "0.1.16",
       "packageArguments": [
         {
           "type": "positional",
@@ -42,7 +48,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/reference-data-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.15",
+      "version": "0.1.16",
       "packageArguments": [
         {
           "type": "positional",

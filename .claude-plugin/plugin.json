@@ -1,13 +1,26 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "reference-data-mcp-server",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.",
   "author": {
-    "name": "cyanheads"
+    "name": "cyanheads",
+    "email": "casey@caseyjhand.com",
+    "url": "https://github.com/cyanheads"
   },
   "homepage": "https://github.com/cyanheads/reference-data-mcp-server#readme",
   "repository": "https://github.com/cyanheads/reference-data-mcp-server.git",
   "license": "Apache-2.0",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "reference-data",
+    "countries",
+    "timezones",
+    "periodic-table",
+    "unit-conversion"
+  ],
   "mcpServers": {
     "reference-data-mcp-server": {
       "command": "npx",

@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.1.15-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/reference-data-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/reference-data-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/reference-data-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.1.16-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/reference-data-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/reference-data-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/reference-data-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -27,146 +27,143 @@
 
 ---
 
-## Tools
+## Overview
 
-Ten tools grouped by domain — geo, timezone, periodic table, physical constants, unit conversion, HTTP, and web:
+Countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types — all served from static, in-memory datasets, entirely offline with no API keys or rate limits. Look up, search, and convert across these domains from any MCP client. Runs as a stdio process, a local Streamable HTTP server, or the public hosted endpoint above.
+
+### Tools
 
 | Tool | Description |
 |:---|:---|
-| `ref_geo_lookup` | Look up a country by name, ISO alpha-2, or alpha-3 code. Returns capital, region, languages, currencies, calling codes, TLD, flag, and IANA timezone IDs. |
-| `ref_geo_search` | Search and filter countries by region, subregion, language, currency, or free-text keyword. |
-| `ref_timezone_lookup` | Get timezone info by IANA ID, country code, or partial city/region name. Returns current and standard UTC offsets, DST status, and major cities. |
-| `ref_timezone_convert` | Convert a local datetime from one timezone to another, with visible UTC offsets for both sides. |
-| `ref_element_lookup` | Look up a periodic table element by name, symbol, or atomic number. Full property set including atomic mass, electron configuration, electronegativity, density, melting/boiling points, and discovery data. |
-| `ref_element_search` | Filter elements by category, group, period, atomic number range, or atomic mass range. |
-| `ref_constant_lookup` | Look up a CODATA 2022 physical constant by name, symbol, or alias. Returns value, SI unit, uncertainty, and related constants. |
-| `ref_unit_convert` | Convert a numeric value between compatible units of measure (length, mass, volume, temperature, speed, pressure, energy, power, frequency, digital storage, angle). |
-| `ref_http_status` | Look up an HTTP status code by number or keyword. Returns reason phrase, description, category, cacheability, and RFC reference. |
-| `ref_mime_type` | Look up a MIME type by type string or file extension. Returns canonical type, extensions, compressibility, and data source. |
+| `ref_geo_lookup` | Look up a country by name, ISO alpha-2, or alpha-3 code. |
+| `ref_geo_search` | Search and filter countries by region, subregion, language, or currency. |
+| `ref_timezone_lookup` | Get timezone info by IANA ID, country code, or city name. |
+| `ref_timezone_convert` | Convert a local datetime from one timezone to another. |
+| `ref_element_lookup` | Look up a periodic table element by name, symbol, or atomic number. |
+| `ref_element_search` | Filter periodic table elements by category, group, period, or property range. |
+| `ref_constant_lookup` | Look up a CODATA 2022 physical constant by name, symbol, or alias. |
+| `ref_unit_convert` | Convert a numeric value between compatible units of measure. |
+| `ref_http_status` | Look up an HTTP status code by number or keyword. |
+| `ref_mime_type` | Look up a MIME type by type string or file extension. |
 
-### `ref_geo_lookup`
+### Resources
 
-Look up a country by name, ISO alpha-2 or alpha-3 code.
+| Resource | Description |
+|:---|:---|
+| `ref://countries/{alpha2}` | Full country record by ISO alpha-2 code. |
+| `ref://elements/{number}` | Full element record by atomic number. |
+| `ref://timezones/{iana_id}` | Timezone info by IANA ID (slashes percent-encoded as `%2F`). |
 
-- Accepts fuzzy name matching — "Brasil" and "Brazil" both resolve
-- Returns full record: capital, region, subregion, official languages, currencies, calling codes, TLD, flag emoji, and IANA timezone IDs
-- Lookup modes: `auto` (tries alpha-2, alpha-3, then name), `name`, `alpha2`, `alpha3`
-
----
-
-### `ref_geo_search`
-
-Search and filter countries with at least one filter required.
-
-- Filters: keyword (name, native name, capital, subregion), region, subregion, language (ISO 639-1 code or name), currency (ISO 4217 code or name)
-- Returns ranked summaries (alpha-2/3, name, capital, region, primary currency, flag)
-- Paginated with configurable limit (1–100); `truncated` flag when results are cut off
+All resource data is also reachable via tools — use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
 
 ---
 
-### `ref_timezone_lookup`
+## Capability reference
 
-Get timezone info for an IANA ID, country code, or city name.
+### `ref_geo_lookup` <sub>tool</sub>
 
-- Partial city matching: "Tokyo" resolves to "Asia/Tokyo", "NY" to "America/New_York"
-- Country code queries return all timezones observed in that country
-- Optional `at` parameter evaluates DST state at a specific ISO 8601 moment
-- Returns current offset, standard offset, DST status, abbreviations, major cities, and country codes
+- Accepts fuzzy name matching ("Brasil" resolves to "Brazil"); a fuzzy hit adds an enrichment notice naming the canonical result
+- Lookup modes: `auto` (alpha2 → alpha3 → name), `name`, `alpha2`, `alpha3`; numeric ISO codes are not supported
+- Returns capital, region/subregion, languages, currencies, calling codes, TLD, flag emoji, and IANA timezone IDs
 
 ---
 
-### `ref_timezone_convert`
+### `ref_geo_search` <sub>tool</sub>
 
-Convert a local datetime between timezones.
+- At least one filter required (`no_filters` error otherwise): keyword (name, native name, capital, subregion), region, subregion, language (ISO 639-1 code or name), or currency (ISO 4217 code or name)
+- Limit 1–100 (default 20); `truncated` flag and `totalMatches` count when results are cut off
+- Empty result set returns a notice echoing the applied filters
 
-- Input is a local ISO 8601 datetime without offset (e.g., `"2026-05-24T15:30:00"`)
-- Accepts full IANA IDs or unambiguous city names
-- Handles DST transitions with a two-pass offset refinement
+---
+
+### `ref_timezone_lookup` <sub>tool</sub>
+
+- Lookup modes: `auto` (IANA ID → country code → city name), `iana`, `country`; partial city matching ("Tokyo" → "Asia/Tokyo", "NY" → "America/New_York")
+- Country-code queries return every timezone observed in that country
+- Optional `at` (ISO 8601) evaluates DST state at a specific moment instead of now; malformed values raise `invalid_at`
+- Returns current/standard UTC offsets, DST status and abbreviations, major cities, and country codes
+
+---
+
+### `ref_timezone_convert` <sub>tool</sub>
+
+- `datetime` must be a local ISO 8601 string without an offset (regex-enforced, e.g. `2026-05-24T15:30:00`); `from_tz`/`to_tz` accept full IANA IDs or unambiguous city names
+- Rejects out-of-range calendar dates and spring-forward DST gaps as `invalid_datetime`; unrecognized zones as `invalid_timezone`
 - Returns source and target local datetimes with their respective UTC offsets, plus the UTC equivalent
 
 ---
 
-### `ref_element_lookup`
+### `ref_element_lookup` <sub>tool</sub>
 
-Look up any of the 118 periodic table elements.
-
-- Accepts name, symbol, or atomic number
-- Full property set: atomic mass (with estimated flag), electron configuration, group, period, block, category, Pauling electronegativity, density, melting and boiling points in kelvin, phase at STP, radioactivity, natural occurrence, and discovery data
-- Data sourced from PubChem/IUPAC 2024; synthetic/unstable elements return `null` for experimentally inaccessible properties
+- Lookup modes: `auto` (atomic number → symbol → name), `name`, `symbol`, `number`
+- Full property set: atomic mass (`atomic_mass_estimated` flag), electron configuration, group/period/block, category, Pauling electronegativity, density, melting/boiling points in kelvin, phase at STP, radioactivity, natural occurrence, discovery data
+- Data sourced from PubChem/IUPAC 2024; synthetic or unstable elements return `null` for experimentally inaccessible properties
 
 ---
 
-### `ref_element_search`
+### `ref_element_search` <sub>tool</sub>
 
-Filter elements across the full periodic table.
-
-- Filters: category (partial match), group (1–18), period (1–7), atomic number range, atomic mass range
-- At least one filter required; returns summaries with atomic number, symbol, name, mass, and category
-
----
-
-### `ref_constant_lookup`
-
-Look up CODATA 2022 physical constants (32 entries).
-
-- Fuzzy alias matching: "speed of light", "c", "Avogadro's number", "N_A", "Planck", "h", "Boltzmann", "k_B" all resolve
-- Returns value, SI unit expression, absolute and relative uncertainty, exact-definition flag, CODATA identifier, and up to 3 related constants
+- At least one filter required (`no_filters` error otherwise): category (partial match), group (1–18), period (1–7), atomic-number range, or atomic-mass range
+- Valid categories: alkali metal, alkaline earth metal, transition metal, post-transition metal, metalloid, reactive nonmetal, noble gas, lanthanide, actinide
+- Returns summaries (atomic number, symbol, name, mass, category) plus a `totalMatches` count and a notice when nothing matches
 
 ---
 
-### `ref_unit_convert`
+### `ref_constant_lookup` <sub>tool</sub>
 
-Convert between units in 11 measurement domains.
+- Fuzzy alias matching: "speed of light", "c", "Avogadro's number", "N_A", "Planck", "h", "Boltzmann", "k_B" all resolve against 32 CODATA 2022 constants
+- `match_strategy` discriminates how the query resolved: `exact_symbol`, `exact_name`, or `fuzzy` (closest candidate — verify before reuse)
+- Returns value, SI unit expression, absolute/relative uncertainty (`exact` flag for defined constants), CODATA identifier, and up to 3 related constants
 
-- **Supported:** length (mm–mi), mass (mcg–t), volume (ml–m³), temperature (C/F/K/R, non-linear), speed (m/s, km/h, knot, ft/s), pressure (Pa–psi), energy (J–MWh), power (W–GW), frequency (Hz–GHz), digital storage (b–TB), angle (deg/rad/grad)
+---
+
+### `ref_unit_convert` <sub>tool</sub>
+
+- 11 measurement domains: length, mass, volume, temperature (non-linear C/F/K/R), speed, pressure, energy, power, frequency, digital storage, angle
 - Mass `mt` is the metric tonne (1000 kg); `t` is the US short ton (907.18 kg) — distinct units, easily confused
-- Incompatible unit pairs return a structured error identifying the quantity mismatch
-- Temperatures below absolute zero return a specific error with the Kelvin equivalent
+- Typed errors: `incompatible_units` (mismatched quantities), `unknown_unit` (unrecognized abbreviation), `below_absolute_zero` (with the Kelvin equivalent)
 
 ---
 
-### `ref_http_status`
+### `ref_http_status` <sub>tool</sub>
 
-Look up HTTP status codes by number or keyword.
-
-- Numeric queries (e.g., `"404"`) return an exact match
-- Keyword queries (e.g., `"not found"`, `"too many requests"`) return the closest match plus alternatives
-- Returns: reason phrase, description, category (1xx–5xx), cacheability per RFC 9110, defining RFC with section reference
+- Numeric queries (e.g., "404") return an exact match; keyword queries (e.g., "not found", "too many requests") return the closest match plus alternatives
+- Returns reason phrase, description, category (1xx–5xx), cacheability per RFC 9110, and the defining RFC with section reference
 
 ---
 
-### `ref_mime_type`
+### `ref_mime_type` <sub>tool</sub>
 
-Look up MIME types by type string or file extension.
-
-- Accepts `"image/webp"`, `".webp"`, or `"webp"` interchangeably
+- Accepts "image/webp", ".webp", or "webp" interchangeably
 - Extension lookups return the canonical MIME type first; additional types sharing the extension are listed as alternatives
-- Returns: extensions, compressibility flag (relevant for Content-Encoding decisions), and data source (iana/apache/nginx)
+- Returns extensions, a compressibility flag (relevant for Content-Encoding decisions), and the data source (iana/apache/nginx)
 
 ---
 
-## Resources
+### `ref://countries/{alpha2}` <sub>resource</sub>
 
-| Type | Name | Description |
-|:---|:---|:---|
-| Resource | `ref://countries/{alpha2}` | Full country record by ISO alpha-2 code (e.g., `ref://countries/DE`). |
-| Resource | `ref://elements/{number}` | Full element record by atomic number (e.g., `ref://elements/6` for Carbon). |
-| Resource | `ref://timezones/{iana_id}` | Timezone info by IANA ID with slashes URL-encoded as `%2F` (e.g., `ref://timezones/America%2FNew_York`). |
+- Full country record as `application/json` — same fields as `ref_geo_lookup`
+- `alpha2` accepts either case; an unmatched code returns a `notFound` error
 
-All resource data is also reachable via tools. Use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
+---
+
+### `ref://elements/{number}` <sub>resource</sub>
+
+- Full element record as `application/json` — same fields as `ref_element_lookup`
+- `number` must be an integer string 1–118; out-of-range or unmatched values return `notFound`
+
+---
+
+### `ref://timezones/{iana_id}` <sub>resource</sub>
+
+- Timezone record as `application/json` — same fields as `ref_timezone_lookup`, plus `evaluated_at`
+- Slashes in the IANA ID must be percent-encoded as `%2F` (e.g. `America%2FNew_York`); an unencoded slash matches a separate catch-all that returns an actionable error with the correctly encoded URI
 
 ---
 
 ## Features
 
-Built on [`@cyanheads/mcp-ts-core`](https://www.npmjs.com/package/@cyanheads/mcp-ts-core):
-
-- Declarative tool, resource, and prompt definitions — single file per primitive, framework handles registration and validation
-- Unified error handling — handlers throw, framework catches, classifies, and formats
-- Pluggable auth: `none`, `jwt`, `oauth`
-- Swappable storage backends: `in-memory`, `filesystem`, `Supabase`, `Cloudflare KV/R2/D1`
-- Structured logging with optional OpenTelemetry tracing
-- STDIO and Streamable HTTP transports
+Built on [`@cyanheads/mcp-ts-core`](https://github.com/cyanheads/mcp-ts-core): stdio and Streamable HTTP transports, pluggable auth (`none` / `jwt` / `oauth`), swappable storage (`in-memory`, `filesystem`, `Supabase`, `Cloudflare KV/R2/D1`), structured logging with optional OpenTelemetry tracing.
 
 Reference-data-specific:
 
@@ -176,13 +173,30 @@ Reference-data-specific:
 
 Agent-friendly output:
 
-- Structured error contracts on every tool — typed `reason` codes (`no_match`, `no_filters`, `unknown_unit`, `incompatible_units`, `below_absolute_zero`, `invalid_timezone`, `invalid_datetime`) with actionable recovery hints
-- Discriminated outputs where relevant — `truncated` flag on search results, `alternatives` arrays on MIME/HTTP keyword matches, `atomic_mass_estimated` flag on element data
+- Structured error contracts on every tool — typed `reason` codes (`no_match`, `no_filters`, `unknown_unit`, `incompatible_units`, `below_absolute_zero`, `invalid_timezone`, `invalid_datetime`, `invalid_at`) with actionable recovery hints
+- Discriminated outputs where relevant — `truncated` flag on search results, `alternatives` arrays on MIME/HTTP keyword matches, `atomic_mass_estimated` flag on element data, `match_strategy` on constant lookups
 - Consistent `null` for genuinely unknown or inapplicable values rather than absent fields
 
 ---
 
 ## Getting started
+
+### Public Hosted Instance
+
+A public instance is available at `https://reference-data.caseyjhand.com/mcp` — no installation required. Point any MCP client at it via Streamable HTTP:
+
+```json
+{
+  "mcpServers": {
+    "reference-data-mcp-server": {
+      "type": "streamable-http",
+      "url": "https://reference-data.caseyjhand.com/mcp"
+    }
+  }
+}
+```
+
+### Self-Hosted / Local
 
 Add the following to your MCP client configuration file:
 
@@ -247,7 +261,7 @@ MCP_TRANSPORT_TYPE=http MCP_HTTP_PORT=3010 bun run start:http
 
 ### Prerequisites
 
-- [Bun v1.3.0](https://bun.sh/) or higher (or Node.js v24+).
+- [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
 - No API keys required — this server is entirely self-contained.
 
 ### Installation
@@ -357,7 +371,7 @@ See [`CLAUDE.md`](./CLAUDE.md) for development guidelines and architectural rule
 
 ## Contributing
 
-Issues and pull requests are welcome. Run checks and tests before submitting:
+Issues are welcome. Run checks and tests before submitting:
 
 ```sh
 bun run devcheck
