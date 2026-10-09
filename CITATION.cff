@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: reference-data-mcp-server
-abstract: "Model Context Protocol (MCP) server for reference data lookups — countries, timezones, periodic table elements, physical constants, unit conversion, HTTP status codes, and MIME types."
+abstract: "Model Context Protocol (MCP) server for reference data lookups: countries, timezones, periodic table elements, physical constants, unit conversion, HTTP status codes, and MIME types."
 type: software
 authors:
   - family-names: Hand
