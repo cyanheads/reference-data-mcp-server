@@ -4,7 +4,7 @@
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
-import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { internalError, JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getUnitsService } from '@/services/units/units-service.js';
 
 export const refUnitConvert = tool('ref_unit_convert', {
@@ -62,24 +62,21 @@ export const refUnitConvert = tool('ref_unit_convert', {
         throw ctx.fail(
           'unknown_unit',
           `Unrecognized unit "${err.unit}". Use plain abbreviations: "C" (Celsius), "F" (Fahrenheit), "K" (Kelvin), "R" (Rankine), "km", "kg", "kWh", "Pa". Avoid degree symbols.`,
-          ctx.recoveryFor('unknown_unit'),
         );
       }
       if (err.error === 'incompatible_units') {
         throw ctx.fail(
           'incompatible_units',
           `Cannot convert "${err.from}" (${err.from_measure}) to "${err.to}" (${err.to_measure}) — different physical quantities. Ensure both units measure the same quantity.`,
-          ctx.recoveryFor('incompatible_units'),
         );
       }
       if (err.error === 'below_absolute_zero') {
         throw ctx.fail(
           'below_absolute_zero',
           `Temperature ${err.value} ${err.from} converts to ${err.kelvin_equivalent.toFixed(2)} K, which is below absolute zero (0 K = -273.15 °C = -459.67 °F).`,
-          ctx.recoveryFor('below_absolute_zero'),
         );
       }
-      throw new Error(`Unexpected conversion error`);
+      throw internalError('Unexpected conversion error.');
     }
     return outcome;
   },
