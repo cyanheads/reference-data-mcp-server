@@ -5,6 +5,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getGeoService } from '@/services/geo/geo-service.js';
 
 const CountrySummarySchema = z.object({
@@ -89,6 +90,9 @@ export const refGeoSearch = tool('ref_geo_search', {
   },
 
   enrichmentTrailer: {
+    notice: {
+      render: (notice) => (notice === undefined ? '' : `> ${escapeMarkdownInline(notice)}`),
+    },
     totalMatches: { label: 'Total Matches' },
     truncated: { label: 'Truncated' },
     appliedFilters: {
@@ -100,7 +104,7 @@ export const refGeoSearch = tool('ref_geo_search', {
         if (filters.language) parts.push(`language="${filters.language}"`);
         if (filters.currency) parts.push(`currency="${filters.currency}"`);
         parts.push(`limit=${filters.limit}`);
-        return `**Applied Filters:** ${parts.join(', ')}`;
+        return `**Applied Filters:** ${escapeMarkdownInline(parts.join(', '))}`;
       },
     },
   },

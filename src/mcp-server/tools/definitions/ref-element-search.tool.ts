@@ -5,6 +5,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getElementsService } from '@/services/elements/elements-service.js';
 
 const ElementSummarySchema = z.object({
@@ -80,6 +81,9 @@ export const refElementSearch = tool('ref_element_search', {
   },
 
   enrichmentTrailer: {
+    notice: {
+      render: (notice) => (notice === undefined ? '' : `> ${escapeMarkdownInline(notice)}`),
+    },
     totalMatches: { label: 'Total Matches' },
     appliedFilters: {
       render: (filters) => {
@@ -92,7 +96,7 @@ export const refElementSearch = tool('ref_element_search', {
         if (filters.atomic_mass_range)
           parts.push(`mass=${filters.atomic_mass_range.min}–${filters.atomic_mass_range.max} u`);
         return parts.length > 0
-          ? `**Applied Filters:** ${parts.join(', ')}`
+          ? `**Applied Filters:** ${escapeMarkdownInline(parts.join(', '))}`
           : '**Applied Filters:** none';
       },
     },

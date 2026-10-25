@@ -5,6 +5,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getGeoService } from '@/services/geo/geo-service.js';
 
 const CurrencySchema = z.object({
@@ -80,6 +81,12 @@ export const refGeoLookup = tool('ref_geo_lookup', {
       .describe(
         'Present only when the country was resolved via fuzzy name matching (starts-with or contains), not an exact code or name hit. Echoes the query and the resolved country so the caller can normalize follow-up lookups.',
       ),
+  },
+
+  enrichmentTrailer: {
+    notice: {
+      render: (notice) => (notice === undefined ? '' : `> ${escapeMarkdownInline(notice)}`),
+    },
   },
 
   errors: [
