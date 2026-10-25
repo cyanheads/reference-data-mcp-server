@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-10-09 07:31:37
+Generated on: 2026-10-25 09:36:29
 
 ```text
 reference-data-mcp-server/
@@ -189,6 +189,7 @@ reference-data-mcp-server/
 │   ├── security/
 │   │   └── injection-and-edge-cases.test.ts
 │   ├── tools/
+│   │   ├── enrichment-markdown.test.ts
 │   │   ├── ref-constant-lookup.tool.test.ts
 │   │   ├── ref-element-lookup.tool.test.ts
 │   │   ├── ref-element-search.tool.test.ts

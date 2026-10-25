@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.1.18](changelog/0.1.x/0.1.18.md) — 2026-10-25
+
+Literal Markdown rendering for errors and search context, refreshed timezone data, and mcp-ts-core 0.13.16.
+
 ## [0.1.17](changelog/0.1.x/0.1.17.md) — 2026-10-09
 
 mcp-ts-core 0.13.6 → 0.13.14: tool errors carry a request ID, numeric strings and null optionals are repaired on value, limit, and period, integers are accepted for string queries, the MCP Registry HTTP entry starts the HTTP transport, and the Docker image installs dependencies on the build platform.
