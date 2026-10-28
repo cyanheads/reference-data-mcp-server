@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-10-25 09:36:29
+Generated on: 2026-10-28 12:53:20
 
 ```text
 reference-data-mcp-server/
@@ -25,6 +25,7 @@ reference-data-mcp-server/
 │   └── settings.json
 ├── changelog/
 │   ├── 0.1.x/
+│   ├── 0.2.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -37,6 +38,8 @@ reference-data-mcp-server/
 │   ├── add-resource/
 │   │   └── SKILL.md
 │   ├── add-service/
+│   │   └── SKILL.md
+│   ├── add-skill/
 │   │   └── SKILL.md
 │   ├── add-test/
 │   │   └── SKILL.md
@@ -134,6 +137,9 @@ reference-data-mcp-server/
 │   ├── prune-musl-packages.ts
 │   ├── release-github.ts
 │   └── tree.ts
+├── skills/
+│   └── reference-data-guide/
+│       └── SKILL.md
 ├── src/
 │   ├── data/
 │   │   ├── http-status-codes.ts
@@ -186,6 +192,8 @@ reference-data-mcp-server/
 │   │   ├── ref-countries.resource.test.ts
 │   │   ├── ref-elements.resource.test.ts
 │   │   └── ref-timezones.resource.test.ts
+│   ├── scripts/
+│   │   └── mcpb-runtime.test.ts
 │   ├── security/
 │   │   └── injection-and-edge-cases.test.ts
 │   ├── tools/
@@ -217,7 +225,9 @@ reference-data-mcp-server/
 ├── Dockerfile
 ├── LICENSE
 ├── manifest.json
+├── mcp.json
 ├── package.json
+├── plugin.json
 ├── README.md
 ├── server.json
 ├── tsconfig.build.json

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.0](changelog/0.2.x/0.2.0.md) — 2026-10-28
+
+Publishes a country/timezone scheduling guide over MCP and plugins, adopts mcp-ts-core 0.13.18 with the HTTP memory-retention fix from 0.13.17, and refreshes plugin and desktop-bundle packaging.
+
 ## [0.1.18](changelog/0.1.x/0.1.18.md) — 2026-10-25
 
 Literal Markdown rendering for errors and search context, refreshed timezone data, and mcp-ts-core 0.13.16.
