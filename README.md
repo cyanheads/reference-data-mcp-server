@@ -1,13 +1,13 @@
 <div align="center">
   <h1>@cyanheads/reference-data-mcp-server</h1>
   <p><b>Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.</b>
-  <div>10 Tools • 3 Resources</div>
+  <div>10 Tools • 3 Reference Resource Families • 1 Agent Skill</div>
   </p>
 </div>
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.1.18-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/reference-data-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.3.1-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/reference-data-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/reference-data-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.4-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.1.18-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/reference-data-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.4.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/reference-data-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/reference-data-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.4-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -53,8 +53,13 @@ Countries, timezones, periodic table elements, physical constants, units, HTTP s
 | `ref://countries/{alpha2}` | Full country record by ISO alpha-2 code. |
 | `ref://elements/{number}` | Full element record by atomic number. |
 | `ref://timezones/{iana_id}` | Timezone info by IANA ID (slashes percent-encoded as `%2F`). |
+| `skill://reference-data-guide/SKILL.md` | Agent guide for resolving locations and converting meeting times across DST transitions. |
 
-All resource data is also reachable via tools — use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
+The three reference families use four URI template routes: countries, elements, encoded timezone IDs, and an unencoded-timezone-slash route that returns retry guidance. The guide is a separate skill resource.
+
+Reference data is also reachable via tools — use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
+
+The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included in plugin installs and available through MCP resource discovery or the Skills extension (`skills/list` and `skills/get`). It covers location resolution, repeated-hour disambiguation, and search-completeness gates.
 
 ---
 

@@ -62,6 +62,7 @@ await createApp({
     refTimezonesSlashCatchResource,
   ],
   prompts: [],
+  skills: 'skills',
   instructions:
     'Pure in-memory reference data server. No external API calls, no auth required. Use ref_geo_lookup/search for country data, ref_timezone_lookup/convert for timezone operations, ref_element_lookup/search for periodic table, ref_constant_lookup for CODATA 2022 physical constants, ref_unit_convert for unit conversion, ref_http_status for HTTP status codes, ref_mime_type for MIME type and file extension lookups.',
   // Public hosted-catalog server — serve full inventory without auth gate.
