@@ -22,6 +22,17 @@ function formatPrecision(n: number): string {
   return n.toExponential(4);
 }
 
+/**
+ * Everyday spellings convert-units lacks, mapped to its own unit ("m/h" is its mile per hour).
+ * Exact and case-sensitive like library units (`mW` and `MW` differ), and a Map so prototype keys
+ * such as "constructor" never match. Only spellings absent from every library measure belong here.
+ */
+const UNIT_ALIASES = new Map([
+  ['mph', 'm/h'],
+  ['mi/h', 'm/h'],
+  ['kph', 'km/h'],
+]);
+
 function getMeasureForUnit(unitStr: string): string | null {
   try {
     for (const measure of convert().measures()) {
@@ -42,7 +53,8 @@ export type ConversionError =
       from_measure: string;
       to_measure: string;
     }
-  | { error: 'below_absolute_zero'; from: string; value: number; kelvin_equivalent: number };
+  | { error: 'below_absolute_zero'; from: string; value: number; kelvin_equivalent: number }
+  | { error: 'result_out_of_range'; value: number; from: string; to: string };
 
 export class UnitsService {
   convert(
@@ -53,9 +65,13 @@ export class UnitsService {
   ): ConversionResult | ConversionError {
     ctx.log.debug('Unit convert', { value, from, to });
 
+    // Library spellings drive every convert-units call; results and errors keep the caller's.
+    const fromUnit = UNIT_ALIASES.get(from) ?? from;
+    const toUnit = UNIT_ALIASES.get(to) ?? to;
+
     // Validate both units exist
-    const fromMeasure = getMeasureForUnit(from);
-    const toMeasure = getMeasureForUnit(to);
+    const fromMeasure = getMeasureForUnit(fromUnit);
+    const toMeasure = getMeasureForUnit(toUnit);
 
     if (!fromMeasure) {
       return { error: 'unknown_unit', unit: from, which: 'from' };
@@ -79,7 +95,7 @@ export class UnitsService {
     if (fromMeasure === 'temperature') {
       let kelvin_equivalent: number;
       try {
-        kelvin_equivalent = convert(value).from(from).to('K');
+        kelvin_equivalent = convert(value).from(fromUnit).to('K');
       } catch {
         kelvin_equivalent = NaN;
       }
@@ -92,11 +108,24 @@ export class UnitsService {
 
     let result: number;
     try {
-      result = convert(value).from(from).to(to);
+      result = convert(value).from(fromUnit).to(toUnit);
     } catch (err) {
       throw new Error(
         `Unit conversion from "${from}" to "${to}" failed: ${err instanceof Error ? err.message : String(err)}. Ensure both units measure the same quantity.`,
       );
+    }
+
+    /**
+     * convert-units scales to its anchor unit first (km → m), which overflows for some values
+     * whose result still fits (1e308 km is 6.2e307 mi). Every measure but temperature is linear,
+     * so the result is the value times the one-unit factor; only a result that is itself beyond
+     * a double fails. Temperature's shift-and-scale path overflows only when its result does.
+     */
+    if (!Number.isFinite(result) && fromMeasure !== 'temperature') {
+      result = value * convert(1).from(fromUnit).to(toUnit);
+    }
+    if (!Number.isFinite(result)) {
+      return { error: 'result_out_of_range', value, from, to };
     }
 
     return {
@@ -107,14 +136,6 @@ export class UnitsService {
       result_precision: formatPrecision(result),
       measure: fromMeasure,
     };
-  }
-
-  getSupportedUnits(): string[] {
-    return convert().possibilities();
-  }
-
-  getMeasures(): string[] {
-    return convert().measures();
   }
 }
 
