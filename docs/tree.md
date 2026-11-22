@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-11-22 09:20:33
+Generated on: 2026-11-22 09:35:49
 
 ```text
 reference-data-mcp-server/
@@ -27,6 +27,7 @@ reference-data-mcp-server/
 │   ├── 0.1.x/
 │   ├── 0.2.x/
 │   ├── 0.3.x/
+│   ├── 0.4.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md

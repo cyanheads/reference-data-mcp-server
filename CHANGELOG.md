@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.4.0](changelog/0.4.x/0.4.0.md) — 2026-11-22 · ⚠️ Breaking
+
+Timezone lookup uses complete location names and lists ambiguous matches. Conversion requires an exact IANA ID for ambiguous cities and uses each zone’s historical rules.
+
 ## [0.3.0](changelog/0.3.x/0.3.0.md) — 2026-11-21 · ⚠️ Breaking
 
 Adds ref_unicode_lookup for code point and hidden-character lookup, resolves timezone location names written with spaces, accepts mph and kph in ref_unit_convert, and decodes resource IDs once; the city name Rishon LeTsiyyon no longer resolves after the @vvo/tzdb update.
