@@ -5,7 +5,9 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { timezoneRecovery } from '@/services/timezone/timezone-resolver.js';
 import { getTimezoneService } from '@/services/timezone/timezone-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 export const refTimezoneConvert = tool('ref_timezone_convert', {
   title: 'Timezone Conversion',
@@ -60,12 +62,14 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
   errors: [
     {
       reason: 'invalid_timezone',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
-      when: 'Source or target timezone ID is unrecognized.',
+      when: 'Source or target timezone ID is unrecognized or matches multiple zones.',
       recovery: 'Use ref_timezone_lookup to find the correct IANA ID for the desired location.',
     },
     {
       reason: 'invalid_datetime',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'Datetime has out-of-range calendar components (e.g. month 13, February 30) or falls in a daylight-saving spring-forward gap that never occurs in the source timezone. (Malformed format is rejected by the input schema.)',
       recovery:
@@ -77,27 +81,37 @@ export const refTimezoneConvert = tool('ref_timezone_convert', {
     // Datetime *format* is enforced by the input schema's regex. The handler validates
     // semantic convertibility: timezones first, then calendar range + DST-gap.
     const svc = getTimezoneService();
-    const resolvedFrom = svc.resolveIanaIdPublic(input.from_tz) ?? input.from_tz;
-    const resolvedTo = svc.resolveIanaIdPublic(input.to_tz) ?? input.to_tz;
-    if (!svc.isValidIanaPublic(resolvedFrom)) {
+    const resolveOperand = (query: string, side: 'source' | 'target'): string => {
+      const candidates = svc.conversionCandidates(query);
+      const [id] = candidates;
+      if (candidates.length > 1) {
+        throw ctx.fail(
+          'invalid_timezone',
+          `Ambiguous ${side} timezone "${escapeCallerText(query)}".`,
+          {
+            candidates,
+            recovery: { hint: `Use an exact IANA ID from: ${candidates.join(', ')}.` },
+          },
+        );
+      }
+      if (id !== undefined) return id;
+      const hint = timezoneRecovery(query);
+      const message = `Unrecognized ${side} timezone "${escapeCallerText(query)}".`;
       throw ctx.fail(
         'invalid_timezone',
-        `Unrecognized source timezone "${input.from_tz}". Use ref_timezone_lookup to find the correct IANA ID.`,
+        hint ? message : `${message} Use ref_timezone_lookup to find the correct IANA ID.`,
+        hint ? { recovery: { hint } } : undefined,
       );
-    }
-    if (!svc.isValidIanaPublic(resolvedTo)) {
-      throw ctx.fail(
-        'invalid_timezone',
-        `Unrecognized target timezone "${input.to_tz}". Use ref_timezone_lookup to find the correct IANA ID.`,
-      );
-    }
+    };
+    const resolvedFrom = resolveOperand(input.from_tz, 'source');
+    const resolvedTo = resolveOperand(input.to_tz, 'target');
     // Reject out-of-range wall-clock dates (e.g. Feb 30) and DST spring-forward gaps against
     // the now-validated source zone, rather than letting convert() silently normalize them.
     const dtIssue = svc.validateConvertibleDatetime(input.datetime, resolvedFrom);
     if (dtIssue) {
       throw ctx.fail('invalid_datetime', dtIssue.message, { recovery: { hint: dtIssue.hint } });
     }
-    return svc.convert(input.datetime, input.from_tz, input.to_tz, ctx);
+    return svc.convert(input.datetime, resolvedFrom, resolvedTo, ctx);
   },
 
   format: (result) => {

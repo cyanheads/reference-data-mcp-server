@@ -6,6 +6,15 @@
 import { resource, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getTimezoneService } from '@/services/timezone/timezone-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
+
+function unencodedSlash(ianaId: string) {
+  const encodedUri = `ref://timezones/${encodeURIComponent(ianaId)}`;
+  return {
+    message: `Timezone URI contains an unencoded slash. Use: ${encodedUri} (IANA ID: "${escapeCallerText(ianaId)}").`,
+    data: { iana_id: ianaId, encoded_uri: encodedUri },
+  };
+}
 
 /**
  * Catch resource for unencoded IANA timezone IDs with a slash (e.g., America/New_York).
@@ -39,15 +48,45 @@ export const refTimezonesSlashCatchResource = resource('ref://timezones/{region}
   ],
 
   handler(params, ctx) {
-    const ianaId = `${params.region}/${params.city}`;
-    const encodedUri = `ref://timezones/${encodeURIComponent(ianaId)}`;
-    throw ctx.fail(
-      'unencoded_slash',
-      `Timezone URI contains an unencoded slash. Use: ${encodedUri} (IANA ID: "${ianaId}").`,
-      { iana_id: ianaId, encoded_uri: encodedUri },
-    );
+    const { message, data } = unencodedSlash(`${params.region}/${params.city}`);
+    throw ctx.fail('unencoded_slash', message, data);
   },
 });
+
+/** Supplies the encoded retry URI for an IANA ID with three raw path segments. */
+export const refTimezonesNestedSlashCatchResource = resource(
+  'ref://timezones/{region}/{subregion}/{city}',
+  {
+    name: 'ref-timezone-nested-slash-redirect',
+    description:
+      'Returns the percent-encoded URI to retry when a three-segment IANA timezone ID contains unencoded slashes.',
+    mimeType: 'application/json',
+
+    params: z.object({
+      region: z.string().describe('First segment of the IANA timezone ID (e.g., "America").'),
+      subregion: z.string().describe('Second segment of the IANA timezone ID (e.g., "Argentina").'),
+      city: z.string().describe('Last segment of the IANA timezone ID (e.g., "Buenos_Aires").'),
+    }),
+
+    errors: [
+      {
+        reason: 'unencoded_slash',
+        code: JsonRpcErrorCode.ValidationError,
+        when: 'The URI carries an IANA timezone ID with its slashes unencoded.',
+        recovery:
+          'Read the encoded_uri this error names, which encodes the slashes in the IANA ID as %2F.',
+        severity: 'notice',
+      },
+    ],
+
+    handler(params, ctx) {
+      const { message, data } = unencodedSlash(
+        `${params.region}/${params.subregion}/${params.city}`,
+      );
+      throw ctx.fail('unencoded_slash', message, data);
+    },
+  },
+);
 
 export const refTimezonesResource = resource('ref://timezones/{iana_id}', {
   name: 'ref-timezone',
@@ -89,37 +128,19 @@ export const refTimezonesResource = resource('ref://timezones/{iana_id}', {
         'Use an IANA timezone ID with its slash encoded as %2F, or find the ID by city or country with ref_timezone_lookup.',
       severity: 'notice',
     },
-    {
-      reason: 'no_timezone_data',
-      code: JsonRpcErrorCode.NotFound,
-      when: 'The ID is valid IANA but names an alias the timezone dataset does not carry, such as US/Eastern.',
-      recovery:
-        'Use the canonical IANA ID, or find it by city or country with ref_timezone_lookup.',
-      severity: 'notice',
-    },
   ],
 
   // `iana_id` arrives decoded by `createApp({ decodeResourceParams: true })`: %2F is already `/`.
   handler(params, ctx) {
     const ianaId = params.iana_id;
 
-    // Validate that the timezone exists via Intl
-    try {
-      new Intl.DateTimeFormat('en-US', { timeZone: ianaId });
-    } catch {
+    const record = getTimezoneService().readNamedZone(ianaId);
+    if (!record) {
       throw ctx.fail(
         'invalid_timezone',
-        `Timezone "${ianaId}" is not a valid IANA timezone ID. URL-encode slashes as %2F (e.g., America%2FNew_York).`,
+        `Timezone "${escapeCallerText(ianaId)}" is not a valid IANA timezone ID. URL-encode slashes as %2F (e.g., America%2FNew_York).`,
         { iana_id: ianaId },
       );
-    }
-
-    const records = getTimezoneService().lookup(ianaId, 'iana', undefined, ctx);
-    const record = records?.[0];
-    if (!record) {
-      throw ctx.fail('no_timezone_data', `No timezone data found for "${ianaId}".`, {
-        iana_id: ianaId,
-      });
     }
     return {
       ...record,

@@ -1,11 +1,13 @@
 /**
- * @fileoverview Tool for looking up timezone info by IANA ID, country code, or partial name.
+ * @fileoverview Tool for looking up timezone info by IANA ID, country code, or complete location name.
  * @module mcp-server/tools/definitions/ref-timezone-lookup
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { timezoneRecovery } from '@/services/timezone/timezone-resolver.js';
 import { getTimezoneService } from '@/services/timezone/timezone-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 const TimezoneRecordSchema = z.object({
   iana_id: z.string().describe('IANA timezone identifier (e.g., "America/New_York").'),
@@ -31,14 +33,14 @@ const TimezoneRecordSchema = z.object({
 export const refTimezoneLookup = tool('ref_timezone_lookup', {
   title: 'Timezone Lookup',
   description:
-    'Get timezone info by IANA ID, country code, or partial city/region name. Returns current UTC offset, standard offset, whether DST is currently active, and major cities in the timezone. When querying by country code (ISO alpha-2), returns all timezones observed in that country. Accepts partial matches and IANA location names written with spaces — "Tokyo" resolves to "Asia/Tokyo", "New York" resolves to "America/New_York".',
+    'Get timezone offset, DST status, and major cities by IANA ID, ISO alpha-2 country code, or complete city or IANA location name. Returns all matching zones for a country code or an ambiguous city name. "Tokyo" resolves to "Asia/Tokyo", "New York" resolves to "America/New_York".',
   annotations: { readOnlyHint: true, openWorldHint: false },
 
   input: z.object({
     query: z
       .string()
       .describe(
-        'IANA timezone ID (e.g., "America/New_York"), ISO alpha-2 country code (e.g., "US"), or partial city/region name (e.g., "Tokyo", "London"). IANA location names also match when written with spaces (e.g., "New York", "St Lucia").',
+        'IANA timezone ID (e.g., "America/New_York"), ISO alpha-2 country code (e.g., "US"), or a complete city or IANA location name (e.g., "Tokyo", "New York", "St Lucia").',
       ),
     by: z
       .enum(['iana', 'country', 'auto'])
@@ -57,7 +59,9 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
   output: z.object({
     timezones: z
       .array(TimezoneRecordSchema.describe('Timezone record with offset and DST info.'))
-      .describe('Matching timezone records. Multiple records when querying by country.'),
+      .describe(
+        'Matching timezone records. Country codes and ambiguous names can return multiple records.',
+      ),
     evaluated_at: z
       .string()
       .describe('ISO 8601 UTC datetime at which timezone state was evaluated.'),
@@ -66,6 +70,7 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'No timezone matched the query.',
       recovery:
@@ -73,6 +78,7 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
     },
     {
       reason: 'invalid_at',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'The at parameter is not a valid ISO 8601 datetime string.',
       recovery: 'Use ISO 8601 format, e.g., "2026-01-15T12:00:00" or "2026-01-15T12:00:00Z".',
@@ -83,10 +89,15 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
     let atDate: Date | undefined;
     if (input.at?.trim()) {
       const parsed = new Date(input.at);
-      if (Number.isNaN(parsed.getTime())) {
+      // Date accepts February 30 by rolling into March. Check the written day before applying its offset.
+      const calendarDate = /^\s*((?:\d{4}|[+-]\d{6})-\d{2}-\d{2})(?=[T\s]|$)/i.exec(input.at)?.[1];
+      const rolledOver =
+        calendarDate !== undefined &&
+        new Date(`${calendarDate}T00:00:00Z`).getUTCDate() !== Number(calendarDate.slice(-2));
+      if (Number.isNaN(parsed.getTime()) || rolledOver) {
         throw ctx.fail(
           'invalid_at',
-          `Invalid at value "${input.at}". Use ISO 8601 format, e.g., "2026-01-15T12:00:00Z".`,
+          `Invalid at value "${escapeCallerText(input.at)}". Use ISO 8601 format, e.g., "2026-01-15T12:00:00Z".`,
         );
       }
       atDate = parsed;
@@ -100,9 +111,14 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
     }
     const timezones = getTimezoneService().lookup(input.query, input.by, atDate, ctx);
     if (!timezones) {
+      const hint = input.by !== 'country' ? timezoneRecovery(input.query) : undefined;
+      const message = `No timezone matched "${escapeCallerText(input.query)}".`;
       throw ctx.fail(
         'no_match',
-        `No timezone matched "${input.query}". Use an exact IANA timezone ID (e.g., "America/New_York"), a two-letter ISO country code (e.g., "US"), or a major city name.`,
+        hint
+          ? message
+          : `${message} Use an exact IANA timezone ID (e.g., "America/New_York"), a two-letter ISO country code (e.g., "US"), or a major city name.`,
+        hint ? { recovery: { hint } } : undefined,
       );
     }
     return {
@@ -124,8 +140,7 @@ export const refTimezoneLookup = tool('ref_timezone_lookup', {
       );
       lines.push(`**DST active:** ${dstStr}`);
       lines.push(`**Standard abbreviation:** ${tz.standard_abbreviation ?? 'N/A'}`);
-      if (tz.major_cities.length > 0)
-        lines.push(`**Major cities:** ${tz.major_cities.slice(0, 5).join(', ')}`);
+      if (tz.major_cities.length > 0) lines.push(`**Major cities:** ${tz.major_cities.join(', ')}`);
       if (tz.countries.length > 0) lines.push(`**Countries:** ${tz.countries.join(', ')}`);
       lines.push('');
     }

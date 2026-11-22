@@ -9,6 +9,7 @@ import { createApp } from '@cyanheads/mcp-ts-core';
 import { refCountriesResource } from './mcp-server/resources/definitions/ref-countries.resource.js';
 import { refElementsResource } from './mcp-server/resources/definitions/ref-elements.resource.js';
 import {
+  refTimezonesNestedSlashCatchResource,
   refTimezonesResource,
   refTimezonesSlashCatchResource,
 } from './mcp-server/resources/definitions/ref-timezones.resource.js';
@@ -63,6 +64,7 @@ await createApp({
     refElementsResource,
     refTimezonesResource,
     refTimezonesSlashCatchResource,
+    refTimezonesNestedSlashCatchResource,
   ],
   decodeResourceParams: true,
   prompts: [],

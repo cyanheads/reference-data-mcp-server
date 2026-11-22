@@ -52,16 +52,14 @@ export class ElementsService {
     let result: ElementRecord | undefined;
 
     if (by === 'number' || (by === 'auto' && typeof query === 'number')) {
-      const num = typeof query === 'number' ? query : parseInt(String(query), 10);
-      if (!Number.isNaN(num)) result = this.byNumber.get(num);
+      result = this.getByNumber(query);
     } else if (by === 'symbol') {
       result = this.bySymbol.get(String(query).toLowerCase());
     } else if (by === 'name') {
       result = this.resolveName(String(query));
     } else {
       // auto: try number, then symbol, then name
-      const numQuery = typeof query === 'number' ? query : parseInt(String(query), 10);
-      if (!Number.isNaN(numQuery)) result = this.byNumber.get(numQuery);
+      result = this.getByNumber(query);
       if (!result) result = this.bySymbol.get(String(query).toLowerCase());
       if (!result) result = this.resolveName(String(query));
       // Fuzzy name match
@@ -156,8 +154,10 @@ export class ElementsService {
     };
   }
 
-  getByNumber(number: number): ElementRecord | undefined {
-    return this.byNumber.get(number);
+  /** Look up an atomic number, accepting a string only when it consists of ASCII digits. */
+  getByNumber(number: string | number): ElementRecord | undefined {
+    if (typeof number === 'number') return this.byNumber.get(number);
+    return /^\d+$/.test(number) ? this.byNumber.get(Number(number)) : undefined;
   }
 }
 

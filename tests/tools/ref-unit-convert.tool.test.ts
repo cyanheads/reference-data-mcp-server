@@ -29,15 +29,27 @@ function thrownBy(raw: { value: number; from: string; to: string }): unknown {
 /** Description measure names → convert-units measure names. */
 const DESCRIBED_MEASURES: Record<string, string> = {
   length: 'length',
+  area: 'area',
   mass: 'mass',
   volume: 'volume',
+  'volume flow rate': 'volumeFlowRate',
+  count: 'each',
   temperature: 'temperature',
+  time: 'time',
   speed: 'speed',
+  pace: 'pace',
   pressure: 'pressure',
+  current: 'current',
+  voltage: 'voltage',
   energy: 'energy',
   power: 'power',
+  'reactive power': 'reactivePower',
+  'apparent power': 'apparentPower',
+  'reactive energy': 'reactiveEnergy',
   frequency: 'frequency',
+  illuminance: 'illuminance',
   'digital storage': 'digital',
+  'parts per': 'partsPer',
   angle: 'angle',
 };
 
@@ -57,6 +69,30 @@ function describedUnitLists(): Map<string, string[]> {
 }
 
 describe('refUnitConvert', () => {
+  it.each([
+    ['h', 'min', 60, '60.0000', 'time'],
+    ['ha', 'ac', 2.4710514233241505, '2.4711', 'area'],
+    ['A', 'mA', 1000, '1000.00', 'current'],
+    ['l/s', 'gal/min', 15.850323140625001, '15.8503', 'volumeFlowRate'],
+  ])(
+    'converts %s to %s on both response surfaces',
+    async (from, to, expected, rounded, measure) => {
+      const result = await runToolContract(refUnitConvert, { value: 1, from, to });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toEqual({
+        value: 1,
+        from_unit: from,
+        to_unit: to,
+        result: expected,
+        result_precision: rounded,
+        measure,
+      });
+      expect(expectText(result.content)).toBe(
+        `**1 ${from}** = **${rounded} ${to}**\nFull precision: ${expected}\nMeasure: ${measure}`,
+      );
+    },
+  );
+
   it('converts kilometers to miles', async () => {
     const ctx = createMockContext({ errors: refUnitConvert.errors });
     const input = refUnitConvert.input.parse({ value: 1, from: 'km', to: 'mi' });
@@ -241,6 +277,7 @@ describe('refUnitConvert', () => {
   it('converts every unit spelling the definition advertises', async () => {
     const lists = describedUnitLists();
     expect([...lists.keys()].sort()).toEqual(Object.keys(DESCRIBED_MEASURES).sort());
+    expect(Object.values(DESCRIBED_MEASURES).sort()).toEqual(convert().measures().sort());
     const fieldExamples = [refUnitConvert.input.shape.from, refUnitConvert.input.shape.to].flatMap(
       (field) => [...(field.description ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1]!),
     );
@@ -293,6 +330,23 @@ describe('refUnitConvert', () => {
     }
     expect([...measures].sort()).toEqual(Object.values(DESCRIBED_MEASURES).sort());
   });
+
+  it.each(['from', 'to'] as const)(
+    'escapes an unrecognized %s spelling in both messages',
+    async (key) => {
+      const result = await runToolContract(refUnitConvert, {
+        value: 1,
+        from: 'km',
+        to: 'mi',
+        [key]: 'm\u202Eö',
+      });
+      const message = 'Unrecognized unit "m\\u{202E}ö".';
+      expect(result.structuredContent).toMatchObject({
+        error: { message, data: { reason: 'unknown_unit' } },
+      });
+      expect(expectText(result.content)).toContain(message);
+    },
+  );
 
   describe('results at the edge of the double range', () => {
     it('declares result_out_of_range as a notice-level ValidationError', () => {

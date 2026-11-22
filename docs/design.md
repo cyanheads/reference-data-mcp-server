@@ -8,7 +8,7 @@
 |:-----|:------------|:-----------|:------------|
 | `ref_geo_lookup` | Look up a country by name or ISO alpha-2/3 code. Returns the full record: capital, region, population, area, languages spoken, official currency, calling code, TLD, flag emoji, borders, and timezone IDs. | `query: string`, `by?: 'auto' \| 'name' \| 'alpha2' \| 'alpha3'` | `readOnlyHint`, `openWorldHint: false` |
 | `ref_geo_search` | Search and filter countries by region, subregion, language spoken, currency used, or free-text keyword. Returns a ranked list of matching country records. | `keyword?: string`, `region?: string`, `subregion?: string`, `language?: string`, `currency?: string`, `limit?: number` | `readOnlyHint`, `openWorldHint: false` |
-| `ref_timezone_lookup` | Timezone info by IANA ID or country code — current UTC offset, standard offset, whether DST is currently active, and the list of countries that observe the timezone. Accepts partial IANA names (e.g., "Tokyo" → "Asia/Tokyo"). | `query: string`, `by?: 'iana' \| 'country' \| 'auto'`, `at?: string (ISO 8601)` | `readOnlyHint`, `openWorldHint: false` |
+| `ref_timezone_lookup` | Look up timezone offsets, DST and location metadata by named IANA ID, country code, or whole city name. Ambiguous cities return all matching zones. | `query: string`, `by?: 'iana' \| 'country' \| 'auto'`, `at?: string (ISO 8601)` | `readOnlyHint`, `openWorldHint: false` |
 | `ref_timezone_convert` | Convert a local datetime from one timezone to another. Takes a local datetime string plus source timezone, returns the equivalent local time in the target timezone with both UTC offsets shown. | `datetime: string (ISO 8601 local, no Z)`, `from_tz: string`, `to_tz: string` | `readOnlyHint`, `openWorldHint: false` |
 | `ref_element_lookup` | Periodic table lookup by element name, symbol, or atomic number. Returns atomic mass, electron configuration, group, period, block, category, electronegativity, density, melting/boiling points, and discovery year. | `query: string`, `by?: 'auto' \| 'name' \| 'symbol' \| 'number'` | `readOnlyHint`, `openWorldHint: false` |
 | `ref_element_search` | Filter elements by category (metal, nonmetal, metalloid, noble gas, etc.), group (1–18), period (1–7), or property ranges (atomic number range, atomic mass range). Returns matching element summaries. | `category?: string`, `group?: number`, `period?: number`, `atomic_number_range?: {min, max}`, `atomic_mass_range?: {min, max}` | `readOnlyHint`, `openWorldHint: false` |
@@ -23,7 +23,7 @@
 | URI Template | Description | Pagination |
 |:-------------|:------------|:-----------|
 | `ref://countries/{alpha2}` | Full country record by ISO alpha-2 code. | None — single record |
-| `ref://elements/{number}` | Full element record by atomic number. | None — single record |
+| `ref://elements/{number}` | Full element record by atomic number 1–118. The URI parameter is decoded once and must consist of ASCII digits, with leading zeros allowed. | None — single record |
 | `ref://timezones/{iana_id}` | Timezone info by IANA ID (encoded: slashes → `%2F`). | None — single record |
 
 Resources are supplementary — all data is fully accessible through tools. Tools are the primary interface.
@@ -48,7 +48,7 @@ Target users: any agent (and its human) that runs into reference questions durin
 - Timezone operations use the Node.js `Intl` API with the runtime's built-in IANA tzdata — no runtime network calls
 - Dataset versions surfaced explicitly (e.g., "IANA tzdata bundled with Node 24", "CODATA 2022") so callers know the data vintage
 - No external API dependencies at runtime
-- All inputs accept common aliases and partial matches — agents shouldn't need to know exact codes
+- Lookup modes accept domain-specific aliases. Timezone lookup requires a full identifier, a country code, or a whole city or location name.
 - Works offline and in air-gapped environments
 - HTTP/stdio transports — no auth required (read-only reference server)
 - Total bundled dataset size: well under 10MB
@@ -211,17 +211,17 @@ An empty result is not an error: it returns an empty list with a notice echoing 
 
 ### `ref_timezone_lookup`
 
-**Description:** Get timezone info by IANA ID, country code, or partial name. Returns the current UTC offset, standard UTC offset, whether DST is currently active, and the major cities associated with the timezone. When querying by country, returns all timezones observed in that country. Accepts partial matches and IANA location names written with spaces — "Tokyo" resolves to "Asia/Tokyo", "New York" to "America/New_York".
+**Description:** Look up a named IANA zone, the zones of a country, or every zone matching a whole city name. A city with its own zone uses that zone’s historical offsets even when the bundled metadata groups it with another city.
 
 **Input:**
-- `query: string` — IANA timezone ID (e.g., "America/New_York"), ISO alpha-2 country code (e.g., "US"), or partial name (e.g., "Tokyo", "São Paulo"); location names also match when written with spaces (e.g., "New York", "St Lucia"), and unaccented spellings of accented cities resolve (e.g., "Izmir")
+- `query: string` — named IANA ID (including links), ISO alpha-2 country code, or whole city or location name such as `New York` or `St Lucia`. An exact city spelling takes precedence over accent-folded matches.
 - `by?: 'iana' | 'country' | 'auto'` — lookup mode (default: auto). `auto` tries a two-letter country code first, then IANA ID, city, and location-name matching; `iana` runs that matching without the country-code step; `country` matches an ISO alpha-2 code only
 - `at?: string` — ISO 8601 datetime to evaluate timezone state at a specific moment (default: now)
 
 **Output:** One or more timezone records, each with: `iana_id`, `current_offset_hours`, `standard_offset_hours`, `dst_active`, `dst_abbreviation`, `standard_abbreviation`, `major_cities`, `countries` (list of alpha-2 codes).
 
 **Errors:**
-- `no_match` (NotFound) — no timezone matched the query. Recovery: use exact IANA ID from `Intl.supportedValuesOf('timeZone')` or two-letter ISO country code.
+- `no_match` (NotFound) — no timezone matched the query. Use a named IANA ID supported by the runtime, or use country mode with a two-letter ISO code.
 - `invalid_at` (ValidationError) — `at` is not a valid ISO 8601 datetime. Recovery: use ISO 8601, e.g., "2026-01-15T12:00:00Z".
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
@@ -240,8 +240,8 @@ An empty result is not an error: it returns an empty list with a notice echoing 
 **Output:** `{ source: { datetime, tz, offset }, target: { datetime, tz, offset }, utc_equivalent }`. Both local datetimes plus the UTC equivalent so callers can chain.
 
 **Errors:**
-- `invalid_timezone` (ValidationError) — unrecognized timezone ID. Recovery: use `ref_timezone_lookup` to find the correct IANA ID.
-- `invalid_datetime` (ValidationError) — malformed datetime string. Recovery: use ISO 8601 without timezone offset, e.g., "2026-05-24T15:30:00".
+- `invalid_timezone` (ValidationError) — unrecognized timezone or ambiguous city. Use a candidate ID from the error or look up the location with `ref_timezone_lookup`.
+- `invalid_datetime` (ValidationError) — a calendar component is out of range or the source wall-clock time falls in a DST gap. Use a valid local date and an hour that occurs in the source zone. The input schema rejects malformed datetime strings before conversion.
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: false`
 
@@ -252,7 +252,7 @@ An empty result is not an error: it returns an empty list with a notice echoing 
 **Description:** Look up a periodic table element by name, chemical symbol, or atomic number. Returns the full data record: atomic number, symbol, name, atomic mass, electron configuration, group, period, block, category (e.g., "noble gas", "transition metal"), electronegativity, density, melting point, boiling point, and discovery year.
 
 **Input:**
-- `query: string` — element name (e.g., "tungsten"), symbol (e.g., "W"), or atomic number (e.g., "74")
+- `query: string` — element name (e.g., "tungsten"), symbol (e.g., "W"), or atomic number from 1 to 118 written as ASCII digits (e.g., "74" or "074")
 - `by?: 'auto' | 'name' | 'symbol' | 'number'` — lookup mode (default: auto — tries number, then symbol, then name)
 
 **Output:** Full element record. All numeric properties include their units. Missing values (not experimentally determined) returned as null with a note.
@@ -306,7 +306,9 @@ An empty result is not an error: it returns an empty list with a notice.
 
 ### `ref_unit_convert`
 
-**Description:** Convert a numeric value between compatible units of measure. Supports: length (mm, cm, m, km, in, ft, yd, mi), mass (mcg, mg, g, kg, oz, lb, mt = metric tonne / 1000 kg, t = US short ton / 907.18 kg), volume (ml, cl, dl, l, kl, tsp, Tbs, fl-oz, cup, pnt, qt, gal, m3), temperature (C, F, K, R — non-linear conversions handled), speed (m/s, km/h, kph, mph, m/h or mi/h = mile per hour, knot, ft/s), pressure (Pa, kPa, MPa, hPa, bar, torr, psi), energy (J, kJ, Wh, kWh, MWh), power (W, mW, kW, MW, GW), frequency (Hz, kHz, MHz, GHz), digital storage (b, Kb, Mb, Gb, Tb, B, KB, MB, GB, TB), and angle (deg, rad, grad). Incompatible units (e.g., km to kg) return an error identifying the quantity mismatch.
+**Description:** Convert a numeric value between compatible units of measure. Supports length (`mm`, `cm`, `m`, `km`, `in`, `ft`, `ft-us`, `yd`, `mi`), area (`m2`, `ha`, `ac`), mass (`mcg`, `mg`, `g`, `kg`, `oz`, `lb`, `mt`, `t`), volume (`mm3`, `cm3`, `ml`, `cl`, `dl`, `l`, `kl`, `m3`, `km3`, `tsp`, `Tbs`, `in3`, `fl-oz`, `cup`, `pnt`, `qt`, `gal`, `ft3`, `yd3`), volume flow rate (`l/s`, `m3/s`, `gal/min`), count (`ea`, `dz`), temperature (`C`, `F`, `K`, `R`), time (`s`, `min`, `h`), speed (`m/s`, `km/h`, `kph`, `mph`, `m/h`, `mi/h`, `knot`, `ft/s`), pace (`min/km`, `min/mi`), pressure (`Pa`, `kPa`, `MPa`, `hPa`, `bar`, `torr`, `psi`, `ksi`), current (`A`, `mA`, `kA`), voltage (`V`, `mV`, `kV`), energy (`J`, `kJ`, `mWh`, `Wh`, `kWh`, `MWh`, `GWh`), power (`W`, `mW`, `kW`, `MW`, `GW`), reactive power (`VAR`, `kVAR`), apparent power (`VA`, `kVA`), reactive energy (`VARh`, `kVARh`), frequency (`Hz`, `kHz`, `MHz`, `GHz`, `THz`, `rpm`, `deg/s`, `rad/s`), illuminance (`lx`, `ft-cd`), digital storage (`b`, `Kb`, `Mb`, `Gb`, `Tb`, `B`, `KB`, `MB`, `GB`, `TB`), parts per (`ppm`, `ppb`, `ppt`, `ppq`), and angle (`deg`, `rad`, `grad`, `arcmin`, `arcsec`).
+
+`mt` denotes the metric tonne (1000 kg) and `t` denotes the US short ton (907.18 kg). `mph`, `m/h`, and `mi/h` denote mile per hour. `kph` is an alias for `km/h`. Temperature conversions support offsets.
 
 **Input:**
 - `value: number` — numeric quantity to convert
@@ -317,7 +319,7 @@ An empty result is not an error: it returns an empty list with a notice.
 
 **Errors:**
 - `incompatible_units` (ValidationError) — units measure different quantities. Recovery: check that from and to units measure the same physical quantity (e.g., both length, both mass). Error message names the quantity each unit measures.
-- `unknown_unit` (ValidationError) — unrecognized unit string. Recovery: a fixed list of common abbreviations (km, kg, l, C, mph, Pa, kWh, W, Hz, GB, deg) plus a reminder to check for typos and degree symbols.
+- `unknown_unit` (ValidationError) — unrecognized unit string. Recovery lists one spelling per measure (`km`, `m2`, `kg`, `l`, `l/s`, `ea`, `C`, `s`, `mph`, `min/km`, `Pa`, `A`, `V`, `kWh`, `W`, `VAR`, `VA`, `VARh`, `Hz`, `lx`, `GB`, `ppm`, `deg`) and reminds callers to omit degree symbols from temperature units.
 - `below_absolute_zero` (ValidationError) — the input temperature is below absolute zero. Recovery: provide a temperature at or above 0 K; the message carries the Kelvin equivalent.
 - `result_out_of_range` (ValidationError) — the converted result, in either sign, is larger in magnitude than a double holds. Recovery: convert a smaller magnitude, or convert to a larger unit; the message names the value and both units as sent. Only a result that is itself beyond a double fails, and no input bound or clamp applies. convert-units scales through its anchor unit first (km → m), which overflows for some values whose result fits, so a linear conversion that overflows there is recomputed as the value times the one-unit factor (1e308 km → mi returns 6.2e307 mi).
 

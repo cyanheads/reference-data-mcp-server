@@ -4,7 +4,7 @@ description: Resolve country and timezone identities with ref_* tools before con
 license: Apache-2.0
 metadata:
   author: "cyanheads"
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## Scope
@@ -17,7 +17,7 @@ Carry the country `alpha2` returned by `ref_geo_search` or `ref_geo_lookup` into
 
 ## Gates
 
-- Resolve the intended city or IANA zone before converting. A country can have multiple zones; never choose its first zone as a default. Partial timezone names resolve to the first match without an ambiguity warning. Check the returned IANA ID and available city/country metadata against the intended location; use the full IANA ID for subsequent calls.
+- Look up the whole city name before converting. A name such as `Kingston` returns multiple IANA IDs. Use the intended country or city to select the zone, then pass that exact ID to conversion. Ask for the location when the available details leave several candidates.
 - Evaluate timezone state at the event's instant, not at the current time. For `ref_timezone_lookup`, include `Z` or an explicit UTC offset in the evaluation timestamp: an offset-free timestamp is interpreted in the server process's local timezone. This differs from conversion, where the offset-free datetime is local to the source zone.
 - Treat a successful conversion during a fall-back repeated hour as one possible instant, not proof of the intended occurrence. The converter accepts repeated times and has no occurrence selector. Obtain the intended UTC instant or explicit offset; if given an offset, derive the UTC instant first. Then convert that UTC wall-clock datetime with `UTC` as the source zone and omit the `Z` suffix. This preserves the chosen occurrence.
 - If conversion rejects a spring-forward gap, obtain a real replacement time; do not silently shift the meeting into the next valid hour.

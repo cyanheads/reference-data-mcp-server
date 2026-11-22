@@ -6,6 +6,7 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getHttpStatusService } from '@/services/http-status/http-status-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 const AlternativeSchema = z.object({
   code: z.number().int().describe('HTTP status code.'),
@@ -57,6 +58,7 @@ export const refHttpStatus = tool('ref_http_status', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'No HTTP status code matched the query.',
       recovery:
@@ -76,7 +78,7 @@ export const refHttpStatus = tool('ref_http_status', {
       const isIntegerQuery = /^\d+$/.test(input.query.trim());
       const msg = isIntegerQuery
         ? `HTTP status code ${input.query.trim()} is not a registered IANA code. Use the numeric code directly or search with a keyword.`
-        : `No HTTP status code matched "${input.query}". Try the numeric code directly (e.g., "404"), or keywords like "not found", "unauthorized", "too many requests".`;
+        : `No HTTP status code matched "${escapeCallerText(input.query)}". Try the numeric code directly (e.g., "404"), or keywords like "not found", "unauthorized", "too many requests".`;
       throw ctx.fail('no_match', msg);
     }
     return result;

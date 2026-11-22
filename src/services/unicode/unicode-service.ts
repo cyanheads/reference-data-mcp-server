@@ -31,7 +31,7 @@ const MAX_HEX_DIGITS = 6;
 const MAX_DECIMAL_DIGITS = 7;
 
 /**
- * Advice that works for every shape `looksLikeCodePointNumber` flags: `by: "code_point"` rejects
+ * Advice that works for every shape `looksLikeCodePointToken` flags: `by: "code_point"` rejects
  * the HTML character references and the unbraced backslash-u escape, so the notice names U+
  * notation (which auto reads) and `by: "decimal"` instead.
  */
@@ -66,15 +66,6 @@ function everyUnit(text: string, start: number, end: number, test: (unit: number
   if (end <= start) return false;
   for (let i = start; i < end; i++) if (!test(text.charCodeAt(i))) return false;
   return true;
-}
-
-/** `text` without leading and trailing ASCII whitespace (TAB, LF, CR, SPACE). */
-function trimAsciiWhitespace(text: string): string {
-  let start = 0;
-  let end = text.length;
-  while (start < end && isAsciiWhitespace(text.charCodeAt(start))) start++;
-  while (end > start && isAsciiWhitespace(text.charCodeAt(end - 1))) end--;
-  return text.slice(start, end);
 }
 
 /** The runs of `text` between separators (ASCII whitespace and commas). */
@@ -165,27 +156,57 @@ function isUPlusNotation(tokens: readonly string[]): boolean {
   );
 }
 
-/**
- * True when a query auto mode read as text still looks like a number naming a code point: `0xH+`,
- * `\uH+` or `\u{H+}`, an HTML character reference `&#xH+;` or `&#D+;`, or a run of digits.
- */
-function looksLikeCodePointNumber(trimmed: string): boolean {
-  const first = trimmed.charCodeAt(0);
-  const second = trimmed.charCodeAt(1);
-  if (first === 0x30 && lower(second) === 0x78) {
-    return everyUnit(trimmed, 2, trimmed.length, isHexDigit);
+const hasBackslashU = (token: string, start: number) =>
+  token.charCodeAt(start) === 0x5c && lower(token.charCodeAt(start + 1)) === 0x75;
+
+/** A single backslash escape or a run of contiguous fixed-width unbraced escapes. */
+function looksLikeBackslashEscape(token: string): boolean {
+  if (token.charCodeAt(2) === 0x7b) {
+    return token.endsWith('}') && everyUnit(token, 3, token.length - 1, isHexDigit);
   }
-  if (first === 0x5c && lower(second) === 0x75) {
-    const start = trimmed.charCodeAt(2) === 0x7b ? 3 : 2;
-    const end = trimmed.endsWith('}') ? trimmed.length - 1 : trimmed.length;
-    return everyUnit(trimmed, start, end, isHexDigit);
+  if (everyUnit(token, 2, token.length, isHexDigit)) return true;
+  if (token.length % 6 !== 0) return false;
+  for (let start = 0; start < token.length; start += 6) {
+    if (!hasBackslashU(token, start) || !everyUnit(token, start + 2, start + 6, isHexDigit)) {
+      return false;
+    }
   }
-  if (first === 0x26 && second === 0x23) {
-    const start = lower(trimmed.charCodeAt(2)) === 0x78 ? 3 : 2;
-    const end = trimmed.endsWith(';') ? trimmed.length - 1 : trimmed.length;
-    return everyUnit(trimmed, start, end, isHexDigit);
+  return true;
+}
+
+/** A numeric character reference or a run of complete, semicolon-terminated references. */
+function looksLikeNumericReference(token: string): boolean {
+  let start = 0;
+  while (start < token.length) {
+    if (token.charCodeAt(start) !== 0x26 || token.charCodeAt(start + 1) !== 0x23) return false;
+    const hex = lower(token.charCodeAt(start + 2)) === 0x78;
+    const digits = start + (hex ? 3 : 2);
+    const terminator = token.indexOf(';', digits);
+    const isDigit = hex ? isHexDigit : isDecimalDigit;
+    if (terminator === -1) return start === 0 && everyUnit(token, digits, token.length, isDigit);
+    if (!everyUnit(token, digits, terminator, isDigit)) return false;
+    start = terminator + 1;
   }
-  return everyUnit(trimmed, 0, trimmed.length, isDecimalDigit);
+  return true;
+}
+
+/** Recognize a notation-shaped token for the advisory without decoding or range-checking it. */
+function looksLikeCodePointToken(token: string): boolean {
+  const first = token.charCodeAt(0);
+  const second = token.charCodeAt(1);
+  if (isUPlusToken(token) || (first === 0x30 && lower(second) === 0x78)) {
+    return everyUnit(token, 2, token.length, isHexDigit);
+  }
+  if (hasBackslashU(token, 0)) return looksLikeBackslashEscape(token);
+  if (first === 0x26 && second === 0x23) return looksLikeNumericReference(token);
+  if (everyUnit(token, 0, token.length, isDecimalDigit)) return true;
+  // Bare hex must contain both a digit and a letter, so words like "cafe" stay silent.
+  if (token.length < 4 || token.length > MAX_HEX_DIGITS) return false;
+  if (!everyUnit(token, 0, token.length, isHexDigit)) return false;
+  for (let i = 0; i < token.length; i++) {
+    if (isDecimalDigit(token.charCodeAt(i))) return true;
+  }
+  return false;
 }
 
 /** Reads every token as a code point; one malformed or out-of-range token fails the whole call. */
@@ -228,8 +249,7 @@ export function parseQuery(query: string, by: LookupMode): ParsedQuery {
     case 'decimal':
       return { interpretedAs: by, codePoints: readTokens(splitTokens(query), by), notices: [] };
     case 'auto': {
-      const trimmed = trimAsciiWhitespace(query);
-      const tokens = splitTokens(trimmed);
+      const tokens = splitTokens(query);
       if (isUPlusNotation(tokens)) {
         return {
           interpretedAs: 'code_point',
@@ -240,7 +260,8 @@ export function parseQuery(query: string, by: LookupMode): ParsedQuery {
       return {
         interpretedAs: 'text',
         codePoints: codePointsOf(query),
-        notices: looksLikeCodePointNumber(trimmed) ? [LITERAL_TEXT_NOTICE] : [],
+        notices:
+          tokens.length > 0 && tokens.every(looksLikeCodePointToken) ? [LITERAL_TEXT_NOTICE] : [],
       };
     }
   }

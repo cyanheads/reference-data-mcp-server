@@ -236,6 +236,20 @@ describe('refUnicodeLookup — wiring', () => {
     expect(rendered(blocks[1] ?? '')).toEqual([notice]);
   });
 
+  it('projects the list notice on both surfaces while retaining literal records and pagination', async () => {
+    const { data, blocks } = await lookup({ query: '65 768', limit: 1, offset: 2 });
+    expect(data).toMatchObject({
+      interpreted_as: 'text',
+      summary: { code_point_count: 6 },
+      code_points: [{ index: 2, code_point: 'U+0020' }],
+      truncated: true,
+      next_offset: 3,
+      notice: LITERAL_TEXT_NOTICE,
+    });
+    expect(blocks[0]).toContain('U+0020');
+    expect(rendered(blocks[1] ?? '')).toEqual([LITERAL_TEXT_NOTICE]);
+  });
+
   it.each<[string, Input, string, number | undefined]>([
     [
       'a query holding no tokens',

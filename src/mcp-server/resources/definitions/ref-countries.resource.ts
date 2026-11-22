@@ -6,6 +6,7 @@
 import { resource, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getGeoService } from '@/services/geo/geo-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 export const refCountriesResource = resource('ref://countries/{alpha2}', {
   name: 'ref-country',
@@ -76,7 +77,7 @@ export const refCountriesResource = resource('ref://countries/{alpha2}', {
     if (!record) {
       throw ctx.fail(
         'country_not_found',
-        `Country "${params.alpha2}" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").`,
+        `Country "${escapeCallerText(params.alpha2)}" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").`,
         { alpha2: params.alpha2 },
       );
     }

@@ -6,6 +6,7 @@
 import { resource, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { DATASET_VERSION, getElementsService } from '@/services/elements/elements-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 export const refElementsResource = resource('ref://elements/{number}', {
   name: 'ref-element',
@@ -17,7 +18,9 @@ export const refElementsResource = resource('ref://elements/{number}', {
   params: z.object({
     number: z
       .string()
-      .describe('Atomic number as a string (1–118, e.g., "6" for Carbon, "79" for Gold).'),
+      .describe(
+        'Atomic number as a string of ASCII digits (1–118, e.g., "6" for Carbon, "79" for Gold).',
+      ),
   }),
 
   output: z.object({
@@ -80,13 +83,11 @@ export const refElementsResource = resource('ref://elements/{number}', {
   ],
 
   handler(params, ctx) {
-    const num = parseInt(params.number, 10);
-    // The dataset holds exactly 1–118, so the lookup is also the range check (NaN included).
-    const el = getElementsService().getByNumber(num);
+    const el = getElementsService().getByNumber(params.number);
     if (!el) {
       throw ctx.fail(
         'invalid_atomic_number',
-        `Atomic number "${params.number}" is not valid. Use an integer from 1 to 118.`,
+        `Atomic number "${escapeCallerText(params.number)}" is not valid. Use an integer from 1 to 118.`,
         { number: params.number },
       );
     }

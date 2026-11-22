@@ -3,7 +3,7 @@
  * @module tests/tools/ref-timezone-convert.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refTimezoneConvert } from '@/mcp-server/tools/definitions/ref-timezone-convert.tool.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
@@ -14,6 +14,131 @@ beforeAll(() => {
 });
 
 describe('refTimezoneConvert', () => {
+  it.each([
+    ['2015-06-01T12:00:00', 'Krasnoyarsk', 'Asia/Krasnoyarsk', '2015-06-01T05:00:00Z'],
+    ['1980-07-01T12:00:00', 'Juneau', 'America/Juneau', '1980-07-01T20:00:00Z'],
+    ['2020-07-01T12:00:00', 'Mazatlan', 'America/Mazatlan', '2020-07-01T18:00:00Z'],
+  ])('converts %s in %s like its exact IANA ID', async (datetime, city, id, utc) => {
+    const exact = await runToolContract(refTimezoneConvert, {
+      datetime,
+      from_tz: id,
+      to_tz: 'UTC',
+    });
+    expect(exact.structuredContent).toMatchObject({ source: { tz: id }, utc_equivalent: utc });
+    const result = await runToolContract(refTimezoneConvert, {
+      datetime,
+      from_tz: city,
+      to_tz: 'UTC',
+    });
+    expect(result.structuredContent).toEqual(exact.structuredContent);
+    expect(expectText(result.content)).toContain(utc);
+  });
+
+  it.each(['from_tz', 'to_tz'] as const)(
+    'rejects an ambiguous %s with both options',
+    async (side) => {
+      const args = { datetime: '2026-05-24T15:30:00', from_tz: 'UTC', to_tz: 'UTC' };
+      const result = await runToolContract(refTimezoneConvert, { ...args, [side]: 'Kingston' });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          data: {
+            reason: 'invalid_timezone',
+            candidates: ['America/Jamaica', 'Pacific/Norfolk'],
+            recovery: { hint: expect.stringContaining('America/Jamaica') },
+          },
+        },
+      });
+      expect(expectText(result.content)).toContain('America/Jamaica');
+      expect(expectText(result.content)).toContain('Pacific/Norfolk');
+      for (const id of ['America/Jamaica', 'Pacific/Norfolk']) {
+        const explicit = await runToolContract(refTimezoneConvert, { ...args, [side]: id });
+        expect(explicit.isError).toBeFalsy();
+      }
+    },
+  );
+
+  it.each([
+    ['Melbourne', 'Australia/Melbourne', '+11:00'],
+    ['US/Eastern', 'US/Eastern', '-05:00'],
+    ['Japan', 'Japan', '+09:00'],
+    ['Asia/Istanbul', 'Asia/Istanbul', '+03:00'],
+    ['America/Indiana/Indianapolis', 'America/Indiana/Indianapolis', '-05:00'],
+    ['Etc/GMT+5', 'Etc/GMT+5', '-05:00'],
+    ['Etc/GMT-5', 'Etc/GMT-5', '+05:00'],
+  ])(
+    'converts %s on both sides, preserving its identifier and offset',
+    async (query, id, offset) => {
+      for (const side of ['source', 'target']) {
+        const result = await runToolContract(refTimezoneConvert, {
+          datetime: '2026-01-15T12:00:00',
+          from_tz: side === 'source' ? query : 'UTC',
+          to_tz: side === 'target' ? query : 'UTC',
+        });
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({ [side]: { tz: id, offset } });
+        expect(expectText(result.content)).toContain(`${id}, UTC${offset}`);
+      }
+    },
+  );
+
+  it.each([
+    ['US', 'country'],
+    ['CA', 'country'],
+    ['BR', 'country'],
+    ['GMT+5', 'inverted'],
+    ['UTC-5', 'inverted'],
+    ['San', 'IANA ID'],
+    ['East', 'IANA ID'],
+    ['Honol', 'IANA ID'],
+    ['reykj', 'IANA ID'],
+  ])('rejects conversion from %s with recovery', async (query, hint) => {
+    const result = await runToolContract(refTimezoneConvert, {
+      datetime: '2026-05-24T15:30:00',
+      from_tz: query,
+      to_tz: 'UTC',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: { reason: 'invalid_timezone', recovery: { hint: expect.stringContaining(hint) } },
+      },
+    });
+    expect(expectText(result.content)).toContain(hint);
+  });
+
+  it('preserves explicit numeric offsets and the existing GMT alias', async () => {
+    const result = await runToolContract(refTimezoneConvert, {
+      datetime: '2026-05-24T15:30:00',
+      from_tz: '+05:00',
+      to_tz: 'Etc/GMT',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({
+      source: { tz: '+05:00', offset: '+05:00' },
+      target: { tz: 'UTC', offset: '+00:00' },
+      utc_equivalent: '2026-05-24T10:30:00Z',
+    });
+    expect(expectText(result.content)).toContain('2026-05-24T10:30:00Z');
+  });
+
+  it('applies an explicit numeric offset on the target side', async () => {
+    const result = await runToolContract(refTimezoneConvert, {
+      datetime: '2026-05-24T21:30:00',
+      from_tz: 'UTC',
+      to_tz: '+05:00',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual({
+      source: { datetime: '2026-05-24T21:30:00', tz: 'UTC', offset: '+00:00' },
+      target: { datetime: '2026-05-25T02:30:00', tz: '+05:00', offset: '+05:00' },
+      utc_equivalent: '2026-05-24T21:30:00Z',
+    });
+    const text = expectText(result.content);
+    expect(text).toContain('2026-05-25T02:30:00 (+05:00, UTC+05:00)');
+    expect(text).toContain('2026-05-24T21:30:00Z');
+  });
+
   it('converts Tokyo time to New York time', async () => {
     const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     const input = refTimezoneConvert.input.parse({

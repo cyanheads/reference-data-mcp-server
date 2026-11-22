@@ -232,6 +232,7 @@ src/
     mime/
       mime-service.ts                   # MIME type lookup (mime-db)
     timezone/
+      timezone-resolver.ts              # Exact IANA IDs and complete city or location names
       timezone-service.ts               # IANA timezone lookup and conversion (Intl + @vvo/tzdb)
       types.ts
     unicode/
@@ -246,7 +247,7 @@ src/
     tools/definitions/
       [tool-name].tool.ts               # Tool definitions (11 tools)
     resources/definitions/
-      [resource-name].resource.ts       # Resource definitions (4 resources)
+      [resource-name].resource.ts       # Reference resource templates and timezone URI recovery routes
   types/
     convert-units.d.ts                  # Type declarations for convert-units v2.x
 ```

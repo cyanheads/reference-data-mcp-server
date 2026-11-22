@@ -130,10 +130,17 @@ const JAMO_V_COUNT = 21;
 const JAMO_T_COUNT = 28;
 const JAMO_VT_COUNT = JAMO_V_COUNT * JAMO_T_COUNT;
 
+let propertyTable: ReturnType<typeof decodeProperties> | undefined;
+
+/** Read a code point's bundled properties without loading the name and normalization tables. */
+export function getUnicodeProperties(codePoint: number): CodePointProperties {
+  propertyTable ??= decodeProperties();
+  return propertyTable.properties(checkCodePoint(codePoint));
+}
+
 /**
- * Decodes all three data modules and returns their lookups. Validates every table while it
- * decodes, so a malformed or mismatched table fails here rather than at lookup time. Each call
- * decodes afresh: call it once at startup and share the result.
+ * Loads the three data modules and returns their lookups. Validates every table while it decodes,
+ * so a malformed or mismatched table fails here rather than at lookup time. Call once at startup.
  * @throws McpError (InternalError) with `data.table` and `data.field` naming the defective table.
  */
 export function loadUnicodeTables(): UnicodeTables {
@@ -153,7 +160,8 @@ export function loadUnicodeTables(): UnicodeTables {
   }
   const name = decodeNames();
   const aliases = decodeAliases();
-  const { properties, categoryName } = decodeProperties();
+  propertyTable ??= decodeProperties();
+  const { properties, categoryName } = propertyTable;
   const block = decodeBlocks();
   const normalization = decodeNormalization();
   return {

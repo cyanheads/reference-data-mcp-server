@@ -7,6 +7,7 @@ import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
+  refTimezonesNestedSlashCatchResource,
   refTimezonesResource,
   refTimezonesSlashCatchResource,
 } from '@/mcp-server/resources/definitions/ref-timezones.resource.js';
@@ -233,9 +234,57 @@ describe('refTimezonesSlashCatchResource', () => {
 });
 
 describe('timezone resources through resources/read', () => {
-  const read = createResourceReader([refTimezonesResource, refTimezonesSlashCatchResource]);
+  const read = createResourceReader([
+    refTimezonesResource,
+    refTimezonesSlashCatchResource,
+    refTimezonesNestedSlashCatchResource,
+  ]);
   const notValid = (id: string) =>
     `Timezone "${id}" is not a valid IANA timezone ID. URL-encode slashes as %2F (e.g., America%2FNew_York).`;
+
+  it.each([
+    'America/Argentina/Buenos_Aires',
+    'America/Indiana/Marengo',
+    'America/Kentucky/Monticello',
+    'America/North_Dakota/New_Salem',
+  ])('gives encoding guidance for %s', async (id) => {
+    const reply = await read(`ref://timezones/${id}`);
+    const retry = `ref://timezones/${encodeURIComponent(id)}`;
+    expect(reply.error?.code).toBe(JsonRpcErrorCode.ValidationError);
+    expect(reply.error?.message).toContain(retry);
+    expect(reply.error?.data).toMatchObject({
+      reason: 'unencoded_slash',
+      iana_id: id,
+      encoded_uri: retry,
+    });
+  });
+
+  it.each([
+    ['US/Eastern', -5],
+    ['Japan', 9],
+    ['Asia/Istanbul', 3],
+    ['America/Indiana/Indianapolis', -5],
+    ['Etc/GMT+5', -5],
+    ['Etc/GMT-5', 5],
+  ])('reads the exact named zone %s even if Intl does not enumerate it', async (id, offset) => {
+    const reply = await read(`ref://timezones/${encodeURIComponent(id)}`);
+    expect(reply.error).toBeUndefined();
+    expect(JSON.parse(reply.result?.contents[0]?.text ?? '')).toMatchObject({
+      iana_id: id,
+      standard_offset_hours: offset,
+    });
+  });
+
+  it.each([
+    ['Jamaica', 'America/Jamaica', 'JM'],
+    ['Singapore', 'Asia/Singapore', 'SG'],
+  ])('retains the named record and location metadata for %s', async (alias, id, country) => {
+    const reply = await read(`ref://timezones/${alias}`);
+    expect(JSON.parse(reply.result?.contents[0]?.text ?? '')).toMatchObject({
+      iana_id: id,
+      countries: [country],
+    });
+  });
 
   it('reads a plain IANA ID', async () => {
     const reply = await read('ref://timezones/UTC');
@@ -249,6 +298,19 @@ describe('timezone resources through resources/read', () => {
     const record = JSON.parse(reply.result?.contents[0]?.text ?? '');
     expect(record.iana_id).toBe('America/New_York');
     expect(record.standard_offset_hours).toBe(-5);
+  });
+
+  it('reads a fully encoded nested ID and rejects a double-encoded ID', async () => {
+    const readPath = await read('ref://timezones/America%2FArgentina%2FBuenos_Aires');
+    expect(readPath.error).toBeUndefined();
+    expect(JSON.parse(readPath.result?.contents[0]?.text ?? '').iana_id).toBe(
+      'America/Argentina/Buenos_Aires',
+    );
+    const doubleEncoded = await read('ref://timezones/America%252FArgentina%252FBuenos_Aires');
+    expect(doubleEncoded.error?.data).toMatchObject({
+      reason: 'invalid_timezone',
+      iana_id: 'America%2FArgentina%2FBuenos_Aires',
+    });
   });
 
   it('decodes a double-encoded ID once, to a literal %2F that is not found', async () => {
@@ -266,10 +328,10 @@ describe('timezone resources through resources/read', () => {
     expect(typeof reply.error?.data?.requestId).toBe('string');
   });
 
-  it('reads IANA IDs only: a location name with a space is not found', async () => {
-    const reply = await read('ref://timezones/New%20York');
+  it.each(['New York', '+05:00'])('only reads named IANA IDs, rejecting %s', async (value) => {
+    const reply = await read(`ref://timezones/${encodeURIComponent(value)}`);
     expect(reply.error?.code).toBe(JsonRpcErrorCode.NotFound);
-    expect(reply.error?.message).toBe(notValid('New York'));
+    expect(reply.error?.message).toBe(notValid(value));
   });
 
   it('answers an unencoded slash with the encoded URI to retry', async () => {
@@ -297,13 +359,33 @@ describe('timezone resources through resources/read', () => {
     expect(reply.error?.data?.issues).toEqual([expect.objectContaining({ path: ['iana_id'] })]);
   });
 
-  it('builds the retry URI from decoded segments when a segment carries an encoded slash', async () => {
-    const reply = await read('ref://timezones/America%2FArgentina/Buenos_Aires');
+  it('validates percent escapes before assembling a nested retry URI', async () => {
+    const reply = await read('ref://timezones/America/%E0%A4%A/Buenos_Aires');
     expect(reply.error?.code).toBe(JsonRpcErrorCode.ValidationError);
-    expect(reply.error?.message).toBe(
-      'Timezone URI contains an unencoded slash. Use: ref://timezones/America%2FArgentina%2FBuenos_Aires (IANA ID: "America/Argentina/Buenos_Aires").',
-    );
+    expect(reply.error?.message).toContain('Invalid percent-encoding');
+    expect(reply.error?.data?.issues).toEqual([expect.objectContaining({ path: ['subregion'] })]);
   });
+
+  it('keeps a nested caller fragment visible in the message and exact in structured data', async () => {
+    const reply = await read('ref://timezones/Fictional/Region/City%09Name');
+    expect(reply.error?.message).toContain('Fictional/Region/City\\u{0009}Name');
+    expect(reply.error?.message).not.toContain('\t');
+    expect(reply.error?.data).toMatchObject({
+      iana_id: 'Fictional/Region/City\tName',
+      encoded_uri: 'ref://timezones/Fictional%2FRegion%2FCity%09Name',
+    });
+  });
+
+  it.each(['America%2FArgentina/Buenos_Aires', 'America/Argentina%2FBuenos_Aires'])(
+    'builds the retry URI from decoded segments in %s',
+    async (path) => {
+      const reply = await read(`ref://timezones/${path}`);
+      expect(reply.error?.code).toBe(JsonRpcErrorCode.ValidationError);
+      expect(reply.error?.message).toBe(
+        'Timezone URI contains an unencoded slash. Use: ref://timezones/America%2FArgentina%2FBuenos_Aires (IANA ID: "America/Argentina/Buenos_Aires").',
+      );
+    },
+  );
 
   it('carries the invalid_timezone reason and its recovery hint', async () => {
     const reply = await read('ref://timezones/Galaxy%2FFake');
@@ -313,13 +395,13 @@ describe('timezone resources through resources/read', () => {
     });
   });
 
-  it('carries the no_timezone_data reason for an ID Intl accepts but the dataset lacks', async () => {
+  it('keeps alias metadata empty when only Intl knows the ID', async () => {
     const reply = await read('ref://timezones/US%2FEastern');
-    expect(reply.error?.code).toBe(JsonRpcErrorCode.NotFound);
-    expect(reply.error?.message).toBe('No timezone data found for "US/Eastern".');
-    expect(reply.error?.data?.reason).toBe('no_timezone_data');
-    expect(reply.error?.data?.recovery).toEqual({
-      hint: 'Use the canonical IANA ID, or find it by city or country with ref_timezone_lookup.',
+    expect(reply.error).toBeUndefined();
+    expect(JSON.parse(reply.result?.contents[0]?.text ?? '')).toMatchObject({
+      iana_id: 'US/Eastern',
+      major_cities: [],
+      countries: [],
     });
   });
 
@@ -349,16 +431,11 @@ describe('timezone resources through resources/read', () => {
     }
   });
 
-  it('logs an alias the dataset lacks at notice, not error', async () => {
+  it('does not log an error for an alias the dataset lacks', async () => {
     const logs = watchResourceFailureLogs();
     try {
       await read('ref://timezones/US%2FEastern');
-      expect(logs.records()).toEqual([
-        {
-          level: 'notice',
-          message: 'Error in resource:ref-timezone: No timezone data found for "US/Eastern".',
-        },
-      ]);
+      expect(logs.records()).toEqual([]);
     } finally {
       logs.restore();
     }

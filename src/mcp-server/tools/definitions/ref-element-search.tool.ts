@@ -7,6 +7,7 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getElementsService } from '@/services/elements/elements-service.js';
+import { quoteCallerFilter } from '@/services/unicode/display-escape.js';
 
 const ElementSummarySchema = z.object({
   number: z.number().int().describe('Atomic number.'),
@@ -88,7 +89,7 @@ export const refElementSearch = tool('ref_element_search', {
     appliedFilters: {
       render: (filters) => {
         const parts: string[] = [];
-        if (filters.category) parts.push(`category="${filters.category}"`);
+        if (filters.category) parts.push(`category=${quoteCallerFilter(filters.category)}`);
         if (filters.group != null) parts.push(`group=${filters.group}`);
         if (filters.period != null) parts.push(`period=${filters.period}`);
         if (filters.atomic_number_range)
@@ -105,6 +106,7 @@ export const refElementSearch = tool('ref_element_search', {
   errors: [
     {
       reason: 'no_filters',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'No filter was provided.',
       recovery:
@@ -155,7 +157,7 @@ export const refElementSearch = tool('ref_element_search', {
 
     if (total_matches === 0) {
       const filterDesc = [
-        input.category && `category="${input.category}"`,
+        input.category && `category=${quoteCallerFilter(input.category)}`,
         input.group != null && `group=${input.group}`,
         input.period != null && `period=${input.period}`,
         input.atomic_number_range &&

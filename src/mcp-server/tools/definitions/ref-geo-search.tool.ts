@@ -7,6 +7,7 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getGeoService } from '@/services/geo/geo-service.js';
+import { quoteCallerFilter } from '@/services/unicode/display-escape.js';
 
 const CountrySummarySchema = z.object({
   alpha2: z.string().describe('ISO alpha-2 code.'),
@@ -98,11 +99,11 @@ export const refGeoSearch = tool('ref_geo_search', {
     appliedFilters: {
       render: (filters) => {
         const parts: string[] = [];
-        if (filters.keyword) parts.push(`keyword="${filters.keyword}"`);
-        if (filters.region) parts.push(`region="${filters.region}"`);
-        if (filters.subregion) parts.push(`subregion="${filters.subregion}"`);
-        if (filters.language) parts.push(`language="${filters.language}"`);
-        if (filters.currency) parts.push(`currency="${filters.currency}"`);
+        if (filters.keyword) parts.push(`keyword=${quoteCallerFilter(filters.keyword)}`);
+        if (filters.region) parts.push(`region=${quoteCallerFilter(filters.region)}`);
+        if (filters.subregion) parts.push(`subregion=${quoteCallerFilter(filters.subregion)}`);
+        if (filters.language) parts.push(`language=${quoteCallerFilter(filters.language)}`);
+        if (filters.currency) parts.push(`currency=${quoteCallerFilter(filters.currency)}`);
         parts.push(`limit=${filters.limit}`);
         return `**Applied Filters:** ${escapeMarkdownInline(parts.join(', '))}`;
       },
@@ -112,6 +113,7 @@ export const refGeoSearch = tool('ref_geo_search', {
   errors: [
     {
       reason: 'no_filters',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'No filter or keyword was provided.',
       recovery:
@@ -163,11 +165,11 @@ export const refGeoSearch = tool('ref_geo_search', {
 
     if (total_matches === 0) {
       const filterDesc = [
-        input.keyword && `keyword="${input.keyword}"`,
-        input.region && `region="${input.region}"`,
-        input.subregion && `subregion="${input.subregion}"`,
-        input.language && `language="${input.language}"`,
-        input.currency && `currency="${input.currency}"`,
+        input.keyword && `keyword=${quoteCallerFilter(input.keyword)}`,
+        input.region && `region=${quoteCallerFilter(input.region)}`,
+        input.subregion && `subregion=${quoteCallerFilter(input.subregion)}`,
+        input.language && `language=${quoteCallerFilter(input.language)}`,
+        input.currency && `currency=${quoteCallerFilter(input.currency)}`,
       ]
         .filter(Boolean)
         .join(', ');

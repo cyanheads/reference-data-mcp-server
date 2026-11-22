@@ -7,6 +7,7 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getGeoService } from '@/services/geo/geo-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 const CurrencySchema = z.object({
   code: z.string().describe('ISO 4217 currency code (e.g., "USD").'),
@@ -92,6 +93,7 @@ export const refGeoLookup = tool('ref_geo_lookup', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'No country matched the query.',
       recovery: 'Try a different spelling or use ref_geo_search with a keyword to browse.',
@@ -112,14 +114,14 @@ export const refGeoLookup = tool('ref_geo_lookup', {
     if (!match) {
       throw ctx.fail(
         'no_match',
-        `No country matched "${input.query}". Try a different spelling or use ref_geo_search with a keyword.`,
+        `No country matched "${escapeCallerText(input.query)}". Try a different spelling or use ref_geo_search with a keyword.`,
       );
     }
 
     const { record: result, fuzzy } = match;
     if (fuzzy) {
       ctx.enrich.notice(
-        `Fuzzy name match: resolved '${input.query}' → ${result.name} (${result.alpha2}). Use the canonical name or '${result.alpha2}' for exact follow-up lookups.`,
+        `Fuzzy name match: resolved '${escapeCallerText(input.query)}' → ${result.name} (${result.alpha2}). Use the canonical name or '${result.alpha2}' for exact follow-up lookups.`,
       );
     }
 

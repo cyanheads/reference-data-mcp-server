@@ -5,12 +5,13 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { internalError, JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 import { getUnitsService } from '@/services/units/units-service.js';
 
 export const refUnitConvert = tool('ref_unit_convert', {
   title: 'Unit Conversion',
   description:
-    'Convert a numeric value between compatible units of measure. Supports: length (mm, cm, m, km, in, ft, yd, mi), mass (mcg, mg, g, kg, oz, lb, mt = metric tonne / 1000 kg, t = US short ton / 907.18 kg), volume (ml, cl, dl, l, kl, tsp, Tbs, fl-oz, cup, pnt, qt, gal, m3), temperature (C, F, K, R — non-linear conversions handled), speed (m/s, km/h, kph, mph, m/h or mi/h = mile per hour, knot, ft/s), pressure (Pa, kPa, MPa, hPa, bar, torr, psi), energy (J, kJ, Wh, kWh, MWh), power (W, mW, kW, MW, GW), frequency (Hz, kHz, MHz, GHz), digital storage (b, Kb, Mb, Gb, Tb, B, KB, MB, GB, TB), and angle (deg, rad, grad). Incompatible units (e.g., km to kg) return an error identifying the quantity mismatch.',
+    'Convert a numeric value between compatible units of measure. Supports: length (mm, cm, m, km, in, ft, ft-us, yd, mi), area (m2, ha, ac), mass (mcg, mg, g, kg, oz, lb, mt = metric tonne / 1000 kg, t = US short ton / 907.18 kg), volume (mm3, cm3, ml, cl, dl, l, kl, m3, km3, tsp, Tbs, in3, fl-oz, cup, pnt, qt, gal, ft3, yd3), volume flow rate (l/s, m3/s, gal/min), count (ea, dz), temperature (C, F, K, R — non-linear conversions handled), time (s, min, h), speed (m/s, km/h, kph, mph, m/h or mi/h = mile per hour, knot, ft/s), pace (min/km, min/mi), pressure (Pa, kPa, MPa, hPa, bar, torr, psi, ksi), current (A, mA, kA), voltage (V, mV, kV), energy (J, kJ, mWh, Wh, kWh, MWh, GWh), power (W, mW, kW, MW, GW), reactive power (VAR, kVAR), apparent power (VA, kVA), reactive energy (VARh, kVARh), frequency (Hz, kHz, MHz, GHz, THz, rpm, deg/s, rad/s), illuminance (lx, ft-cd), digital storage (b, Kb, Mb, Gb, Tb, B, KB, MB, GB, TB), parts per (ppm, ppb, ppt, ppq), and angle (deg, rad, grad, arcmin, arcsec). Incompatible units (e.g., km to kg) return an error identifying the quantity mismatch.',
   annotations: { readOnlyHint: true, openWorldHint: false },
 
   input: z.object({
@@ -33,6 +34,7 @@ export const refUnitConvert = tool('ref_unit_convert', {
   errors: [
     {
       reason: 'incompatible_units',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'The source and target units measure different physical quantities.',
       recovery:
@@ -40,13 +42,15 @@ export const refUnitConvert = tool('ref_unit_convert', {
     },
     {
       reason: 'unknown_unit',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'One or both units are not recognized by the underlying library.',
       recovery:
-        'Use standard unit abbreviations: km, kg, l, C, mph, Pa, kWh, W, Hz, GB, deg. Check for typos or degree symbols (use "C" not "°C").',
+        'Use standard unit abbreviations: km, m2, kg, l, l/s, ea, C, s, mph, min/km, Pa, A, V, kWh, W, VAR, VA, VARh, Hz, lx, GB, ppm, deg. Check for typos or degree symbols (use "C" not "°C").',
     },
     {
       reason: 'below_absolute_zero',
+      severity: 'notice',
       code: JsonRpcErrorCode.ValidationError,
       when: 'The input temperature is below absolute zero (0 K = -273.15 °C = -459.67 °F).',
       recovery:
@@ -67,7 +71,7 @@ export const refUnitConvert = tool('ref_unit_convert', {
     if ('error' in outcome) {
       const err = outcome;
       if (err.error === 'unknown_unit') {
-        throw ctx.fail('unknown_unit', `Unrecognized unit "${err.unit}".`);
+        throw ctx.fail('unknown_unit', `Unrecognized unit "${escapeCallerText(err.unit)}".`);
       }
       if (err.error === 'incompatible_units') {
         throw ctx.fail(

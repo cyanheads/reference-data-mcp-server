@@ -5,10 +5,12 @@
  */
 
 import type { CodePointType } from './types.js';
-import type { CodePointProperties } from './unicode-tables.js';
+import { type CodePointProperties, getUnicodeProperties } from './unicode-tables.js';
 
 /** Graphic categories that still render as nothing, or onto a neighbour, when shown alone. */
 const UNSAFE_GRAPHIC_CATEGORIES = new Set(['Mn', 'Mc', 'Me', 'Zs']);
+
+const ESCAPED_TEXT_CATEGORIES = new Set(['Cc', 'Cf', 'Zl', 'Zp']);
 
 /** Error messages show at most this many code points of a caller token. */
 const MAX_SHOWN_CODE_POINTS = 40;
@@ -37,6 +39,28 @@ export function codePointHex(codePoint: number): string {
 /** `\u{XXXX}`, a notation `by: "code_point"` reads back to the same code point. */
 export function codePointEscape(codePoint: number): string {
   return `\\u{${codePointHex(codePoint)}}`;
+}
+
+/** Escape nondisplayable caller characters in prose while preserving visible text and spacing. */
+export function escapeCallerText(text: string): string {
+  let escaped = '';
+  for (const codePoint of codePointsOf(text)) {
+    if (codePoint >= 0x20 && codePoint <= 0x7e) {
+      escaped += String.fromCharCode(codePoint);
+      continue;
+    }
+    const { defaultIgnorable, generalCategory } = getUnicodeProperties(codePoint);
+    escaped +=
+      defaultIgnorable || ESCAPED_TEXT_CATEGORIES.has(generalCategory)
+        ? codePointEscape(codePoint)
+        : String.fromCodePoint(codePoint);
+  }
+  return escaped;
+}
+
+/** Quote a filter value so literal backslashes and quotes remain distinct from display escapes. */
+export function quoteCallerFilter(text: string): string {
+  return `"${escapeCallerText(text.replaceAll('\\', '\\\\').replaceAll('"', '\\"'))}"`;
 }
 
 /**

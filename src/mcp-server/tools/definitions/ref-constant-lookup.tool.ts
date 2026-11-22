@@ -6,6 +6,7 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { DATASET_VERSION, getConstantsService } from '@/services/constants/constants-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 export const refConstantLookup = tool('ref_constant_lookup', {
   title: 'Physical Constant Lookup',
@@ -62,6 +63,7 @@ export const refConstantLookup = tool('ref_constant_lookup', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'No constant matched the query.',
       recovery:
@@ -80,7 +82,7 @@ export const refConstantLookup = tool('ref_constant_lookup', {
     if (!result) {
       throw ctx.fail(
         'no_match',
-        `No physical constant matched "${input.query}". Try common names like "speed of light", "Planck constant", or "gravitational constant".`,
+        `No physical constant matched "${escapeCallerText(input.query)}". Try common names like "speed of light", "Planck constant", or "gravitational constant".`,
       );
     }
     return { ...result, dataset_version: DATASET_VERSION };

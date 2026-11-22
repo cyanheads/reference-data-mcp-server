@@ -3,7 +3,8 @@
  * @module tests/tools/ref-element-lookup.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refElementLookup } from '@/mcp-server/tools/definitions/ref-element-lookup.tool.js';
 import { initElementsService } from '@/services/elements/elements-service.js';
@@ -55,6 +56,13 @@ describe('refElementLookup', () => {
     expect(result.symbol).toBe('H');
   });
 
+  it('looks up a zero-padded atomic number on both response surfaces', async () => {
+    const result = await runToolContract(refElementLookup, { query: '006', by: 'number' });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ number: 6, symbol: 'C', name: 'Carbon' });
+    expect(expectText(result.content)).toContain('# C — Carbon (Z=6)');
+  });
+
   it('returns null for sparse fields on synthetic elements', async () => {
     const ctx = createMockContext({ errors: refElementLookup.errors });
     // Oganesson (118) — synthetic, very limited data
@@ -70,6 +78,38 @@ describe('refElementLookup', () => {
     const ctx = createMockContext({ errors: refElementLookup.errors });
     const input = refElementLookup.input.parse({ query: 'notanelement12345' });
     expect(() => refElementLookup.handler(input, ctx)).toThrow(/No element matched/);
+  });
+
+  it.each(['6abc', '74.9', '1e2', '+6', '-6', ' 6', '6 ', '6\n', '０６', '119'])(
+    'returns no_match for atomic-number query %j in both modes',
+    async (query) => {
+      for (const by of ['auto', 'number'] as const) {
+        const result = await runToolContract(refElementLookup, { query, by });
+        expect(result.isError).toBe(true);
+        expect(result.structuredContent).toMatchObject({
+          error: {
+            code: JsonRpcErrorCode.NotFound,
+            data: {
+              reason: 'no_match',
+              recovery: { hint: expect.stringContaining('ref_element_search') },
+            },
+          },
+        });
+        const text = expectText(result.content);
+        expect(text).toContain('No element matched');
+        expect(text).toContain('ref_element_search');
+        expect(text).toContain('(reason no_match');
+      }
+    },
+  );
+
+  it('escapes caller text in both no_match messages', async () => {
+    const result = await runToolContract(refElementLookup, { query: 'O\u202Exygén' });
+    const message = 'No element matched "O\\u{202E}xygén".';
+    expect(result.structuredContent).toMatchObject({
+      error: { message: expect.stringContaining(message), data: { reason: 'no_match' } },
+    });
+    expect(expectText(result.content)).toContain(message);
   });
 
   it('resolves the IUPAC spelling Aluminium via the auto branch (#34)', async () => {

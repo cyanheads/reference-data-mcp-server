@@ -56,7 +56,7 @@ Countries, timezones, periodic table elements, physical constants, units, HTTP s
 | `ref://timezones/{iana_id}` | Timezone info by IANA ID (slashes percent-encoded as `%2F`). |
 | `skill://reference-data-guide/SKILL.md` | Agent guide for resolving locations and converting meeting times across DST transitions. |
 
-The three reference families use four URI template routes: countries, elements, encoded timezone IDs, and an unencoded-timezone-slash route that returns retry guidance. Each template variable is percent-decoded once before lookup, so `ref://countries/%55%53` reads `US`; a malformed escape is rejected as a validation error. The guide is a separate skill resource.
+The three reference families have five URI templates. Two catch unencoded slashes in timezone IDs and return the encoded URI to retry. Each template variable is percent-decoded once, so `ref://countries/%55%53` reads `US`. A malformed escape returns a validation error. The guide is a separate skill resource.
 
 Reference data is also reachable via tools — use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
 
@@ -85,7 +85,7 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 ### `ref_timezone_lookup` <sub>tool</sub>
 
 - Lookup modes: `auto` (two-letter country code, then IANA ID, city name, and location name), `iana` (the same matching without the country-code step), `country` (ISO alpha-2 code only)
-- Partial city matching ("Tokyo" → "Asia/Tokyo"); location names written with spaces resolve ("New York" → "America/New_York", "St Lucia"), and unaccented spellings of accented cities match (`Izmir`, `Kosice`)
+- Use a whole city or IANA location name, such as `Melbourne`, `New York`, or `St Lucia`. A shared city name returns every matching zone. Exact spelling distinguishes `San Jose` from `San José`.
 - Country-code queries return every timezone observed in that country
 - Optional `at` (ISO 8601) evaluates DST state at a specific moment instead of now; malformed values raise `invalid_at`
 - Returns current/standard UTC offsets, DST status and abbreviations, major cities, and country codes
@@ -95,7 +95,7 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 ### `ref_timezone_convert` <sub>tool</sub>
 
 - `datetime` must be a local ISO 8601 string without an offset (regex-enforced, e.g. `2026-05-24T15:30:00`); `from_tz`/`to_tz` accept full IANA IDs or unambiguous city names
-- Rejects out-of-range calendar dates and spring-forward DST gaps as `invalid_datetime`; unrecognized zones as `invalid_timezone`
+- Out-of-range calendar dates and spring-forward DST gaps return `invalid_datetime`. Ambiguous city names return `invalid_timezone` with candidate IDs. Use an explicit ID for conversion.
 - Returns source and target local datetimes with their respective UTC offsets, plus the UTC equivalent
 
 ---
@@ -103,6 +103,7 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 ### `ref_element_lookup` <sub>tool</sub>
 
 - Lookup modes: `auto` (atomic number → symbol → name), `name`, `symbol`, `number`
+- Atomic-number queries must be strings of ASCII digits from 1 to 118. Leading zeros are accepted (for example, `006` for Carbon).
 - Full property set: atomic mass (`atomic_mass_estimated` flag), electron configuration, group/period/block, category, Pauling electronegativity, density, melting/boiling points in kelvin, phase at STP, radioactivity, natural occurrence, discovery data
 - Data sourced from PubChem/IUPAC 2024; synthetic or unstable elements return `null` for experimentally inaccessible properties
 
@@ -126,7 +127,34 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 
 ### `ref_unit_convert` <sub>tool</sub>
 
-- 11 measurement domains: length, mass, volume, temperature (non-linear C/F/K/R), speed, pressure, energy, power, frequency, digital storage, angle
+Unit spellings are case-sensitive. The tool supports 23 measures.
+
+| Measure | Unit spellings |
+| --- | --- |
+| Length | `mm`, `cm`, `m`, `km`, `in`, `ft`, `ft-us`, `yd`, `mi` |
+| Area | `m2`, `ha`, `ac` |
+| Mass | `mcg`, `mg`, `g`, `kg`, `oz`, `lb`, `mt`, `t` |
+| Volume | `mm3`, `cm3`, `ml`, `cl`, `dl`, `l`, `kl`, `m3`, `km3`, `tsp`, `Tbs`, `in3`, `fl-oz`, `cup`, `pnt`, `qt`, `gal`, `ft3`, `yd3` |
+| Volume flow rate | `l/s`, `m3/s`, `gal/min` |
+| Count | `ea`, `dz` |
+| Temperature | `C`, `F`, `K`, `R` |
+| Time | `s`, `min`, `h` |
+| Speed | `m/s`, `km/h`, `kph`, `mph`, `m/h`, `mi/h`, `knot`, `ft/s` |
+| Pace | `min/km`, `min/mi` |
+| Pressure | `Pa`, `kPa`, `MPa`, `hPa`, `bar`, `torr`, `psi`, `ksi` |
+| Current | `A`, `mA`, `kA` |
+| Voltage | `V`, `mV`, `kV` |
+| Energy | `J`, `kJ`, `mWh`, `Wh`, `kWh`, `MWh`, `GWh` |
+| Power | `W`, `mW`, `kW`, `MW`, `GW` |
+| Reactive power | `VAR`, `kVAR` |
+| Apparent power | `VA`, `kVA` |
+| Reactive energy | `VARh`, `kVARh` |
+| Frequency | `Hz`, `kHz`, `MHz`, `GHz`, `THz`, `rpm`, `deg/s`, `rad/s` |
+| Illuminance | `lx`, `ft-cd` |
+| Digital storage | `b`, `Kb`, `Mb`, `Gb`, `Tb`, `B`, `KB`, `MB`, `GB`, `TB` |
+| Parts per | `ppm`, `ppb`, `ppt`, `ppq` |
+| Angle | `deg`, `rad`, `grad`, `arcmin`, `arcsec` |
+
 - Mass `mt` is the metric tonne (1000 kg); `t` is the US short ton (907.18 kg) — distinct units, easily confused
 - Speed accepts `mph` and `mi/h` for mile per hour (the library's own spelling is `m/h`) and `kph` for `km/h`; `from_unit` and `to_unit` echo the spelling the caller sent
 - Typed errors: `incompatible_units` (mismatched quantities), `unknown_unit` (unrecognized abbreviation), `below_absolute_zero` (with the Kelvin equivalent), `result_out_of_range` (a converted result larger in magnitude than a double holds)
@@ -150,7 +178,8 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 
 ### `ref_unicode_lookup` <sub>tool</sub>
 
-- Reads `query` by `by`: `auto` (code point notation when every token is `U+` followed by hex digits, otherwise literal text), `text`, `code_point` (`U+XXXX`, `0xXXXX`, `\u{XXXX}`, or bare hex, space- or comma-separated), or `decimal`; a query that looks like a code point number but was read as text (`8203`, `0x200B`, `&#x200B;`) adds a notice naming how to look it up as a code point
+- `auto` parses code points when every token uses `U+` notation. Otherwise it inspects literal text. A query such as `0x200B 0x200C`, `65 768`, or `200B` also gets a notice explaining how to request the intended code points.
+- Choose `text` for literal characters, `decimal` for decimal values, or `code_point` for space- or comma-separated hexadecimal values written as `U+XXXX`, `0xXXXX`, `\u{XXXX}`, or bare hex.
 - Pass `by: "text"` for any text the caller did not write itself: `auto` reads text made only of `U+` tokens as the code points they name, so a string that happens to read `U+202E` is reported as that bidi override, not as its six characters (`interpreted_as` reports the reading used)
 - Each code point returns its Unicode name (or code point label and aliases), general category, code point type, block, script, whitespace/default-ignorable/bidi-control/invisible flags, UTF-8 and UTF-16 encodings, NFC/NFD/NFKC/NFKD forms, and its grapheme cluster index
 - `summary` describes the whole input: code point and grapheme cluster counts, UTF-16 and UTF-8 lengths, `well_formed`, and the `invisible_indices` and `bidi_control_indices` of every hidden character
@@ -170,15 +199,15 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 ### `ref://elements/{number}` <sub>resource</sub>
 
 - Full element record as `application/json` — same fields as `ref_element_lookup`
-- `number` must be an integer string 1–118; out-of-range or unmatched values return `invalid_atomic_number`
+- After percent-decoding once, `number` must consist of ASCII digits and represent an atomic number from 1 to 118. Leading zeros are accepted. Malformed or out-of-range values return `invalid_atomic_number`.
 
 ---
 
 ### `ref://timezones/{iana_id}` <sub>resource</sub>
 
 - Timezone record as `application/json` — same fields as `ref_timezone_lookup`, plus `evaluated_at`
-- Slashes in the IANA ID must be percent-encoded as `%2F` (e.g. `America%2FNew_York`); an unencoded slash matches a separate catch-all that returns `unencoded_slash` with the correctly encoded URI
-- An ID the runtime does not recognize returns `invalid_timezone`; a valid IANA alias the timezone dataset does not carry (e.g. `US%2FEastern`) returns `no_timezone_data`
+- Encode every slash in the ID as `%2F`. For example, reading `ref://timezones/America/Argentina/Buenos_Aires` returns `unencoded_slash` with the fully encoded URI to retry.
+- Runtime-supported IANA links such as `US/Eastern` also work. An unknown ID returns `invalid_timezone`.
 
 ---
 
@@ -194,7 +223,7 @@ Reference-data-specific:
 
 Agent-friendly output:
 
-- Structured error contracts on every tool and resource — typed `reason` codes (`no_match`, `no_filters`, `unknown_unit`, `incompatible_units`, `below_absolute_zero`, `result_out_of_range`, `invalid_timezone`, `invalid_datetime`, `invalid_at`, `invalid_code_point`, `country_not_found`, `invalid_atomic_number`, `no_timezone_data`, `unencoded_slash`) with actionable recovery hints
+- Tool and resource failures carry a typed reason and recovery guidance. Modeled input errors and misses log at `notice`. Human-readable messages show non-displayable caller characters as Unicode escapes.
 - Discriminated outputs where relevant — `truncated` flag on search results, `alternatives` arrays on MIME/HTTP keyword matches, `atomic_mass_estimated` flag on element data, `match_strategy` on constant lookups
 - Consistent `null` for genuinely unknown or inapplicable values rather than absent fields
 

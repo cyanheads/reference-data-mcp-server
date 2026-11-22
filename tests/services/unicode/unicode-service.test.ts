@@ -238,12 +238,44 @@ describe('parseQuery — auto', () => {
     ['U+ and a non-hex letter', 'U+G', 'text', [0x55, 0x2b, 0x47], []],
     ['a U+ token then a word', 'U+0041 x', 'text', [...'U+0041 x'].map((c) => c.charCodeAt(0)), []],
     ['commas and a space only', ', ,', 'text', [0x2c, 0x20, 0x2c], []],
-    ['bare hex', '200B', 'text', [0x32, 0x30, 0x30, 0x42], []],
+    ['bare mixed hex', '200B', 'text', [0x32, 0x30, 0x30, 0x42], [N1]],
     ['digits and a letter', '12a', 'text', [0x31, 0x32, 0x61], []],
     ['0x with no digits', '0x', 'text', [0x30, 0x78], []],
     ['a character reference with no digits', '&#;', 'text', [0x26, 0x23, 0x3b], []],
   ])('%s', (_label, query, interpretedAs, codePoints, notices) => {
     expect(parseQuery(query, 'auto')).toEqual({ interpretedAs, codePoints, notices });
+  });
+
+  it.each([
+    '0x200B 0x200C',
+    '65 768',
+    'U+0041 0x0300',
+    '0x41,\t200B\n65',
+    '\\u200B\\u200C',
+    '\\u0041\\U0300, 200B',
+    '&#x200B;&#x200C;',
+    '&#65;&#x0300; 200B',
+  ])('notices a complete notation list %j without decoding it', (query) => {
+    expect(parseQuery(query, 'auto')).toEqual({
+      interpretedAs: 'text',
+      codePoints: [...query].map((char) => char.charCodeAt(0)),
+      notices: [N1],
+    });
+  });
+
+  it.each([
+    'cafe',
+    'face',
+    'added',
+    '0x41 embedded',
+    'U+0041 0xG',
+    '\\u041\\u0300',
+    '\\u0041\\u030',
+    '&#65;&#x0300',
+    '&#65;&#abc;',
+    ' , \t, ',
+  ])('leaves non-notation %j silent', (query) => {
+    expect(parseQuery(query, 'auto').notices).toEqual([]);
   });
 
   /**

@@ -220,6 +220,30 @@ describe('refElementsResource through resources/read', () => {
     expect(JSON.parse(reply.result?.contents[0]?.text ?? '').symbol).toBe('C');
   });
 
+  it.each([
+    ['6abc', '6abc'],
+    ['74.9', '74.9'],
+    ['1e2', '1e2'],
+    ['%2B6', '+6'],
+    ['%201', ' 1'],
+    ['6%20', '6 '],
+  ])('rejects malformed atomic number %s after decoding', async (encoded, decoded) => {
+    const reply = await read(`ref://elements/${encoded}`);
+    expect(reply.error).toMatchObject({
+      code: JsonRpcErrorCode.NotFound,
+      data: { reason: 'invalid_atomic_number', number: decoded },
+    });
+  });
+
+  it('escapes the decoded ID in the error message and keeps its raw value in data', async () => {
+    const reply = await read('ref://elements/%E2%80%AE6');
+    expect(reply.error).toMatchObject({
+      code: JsonRpcErrorCode.NotFound,
+      message: 'Atomic number "\\u{202E}6" is not valid. Use an integer from 1 to 118.',
+      data: { reason: 'invalid_atomic_number', number: '\u202E6' },
+    });
+  });
+
   it('decodes a double-encoded number once, to a literal escape that is not valid', async () => {
     const reply = await read('ref://elements/%2536');
     expect(reply.error?.code).toBe(JsonRpcErrorCode.NotFound);

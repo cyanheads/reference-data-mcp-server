@@ -6,6 +6,7 @@
 
 import type { Context } from '@cyanheads/mcp-ts-core';
 import { getTimeZones } from '@vvo/tzdb';
+import { TimezoneResolver } from './timezone-resolver.js';
 import type { ConversionResult, DatetimeIssue, TimezoneRecord } from './types.js';
 
 /** Format UTC offset minutes as "+HH:MM" or "-HH:MM" */
@@ -93,120 +94,38 @@ function getIntlAbbreviation(ianaId: string, at?: Date): string | null {
   }
 }
 
-/** Lowercase and drop diacritics through NFD decomposition: "Košice" → "kosice", "İzmir" → "izmir". */
-function stripMarks(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
-}
-
-/**
- * Location-name key for unaccented text: drop `.` and apostrophes, collapse runs of `_`, `-`,
- * and whitespace to one space, trim. "St. Lucia", "St_Lucia", and " st  lucia " share "st lucia".
- */
-function foldSeparators(s: string): string {
-  return s
-    .replace(/[.'’‘]/g, '')
-    .replace(/[_\-\s]+/g, ' ')
-    .trim();
-}
-
-/** Check if DST is active by comparing current offset to standard (January) offset */
-function isDstActive(
-  ianaId: string,
-  at?: Date,
-): { dst_active: boolean; standard_offset_minutes: number } {
-  const date = at ?? new Date();
-  // January is reliably non-DST in the Northern Hemisphere; July in Southern
-  const jan = new Date(date.getFullYear(), 0, 15); // Jan 15
-  const jul = new Date(date.getFullYear(), 6, 15); // Jul 15
-  const janOffset = getIntlOffsetMinutes(ianaId, jan);
-  const julOffset = getIntlOffsetMinutes(ianaId, jul);
-
-  // Standard offset is the smaller (more negative) one — southern hemispheres flip this
-  const standard_offset_minutes = Math.min(janOffset, julOffset);
-  const current = getIntlOffsetMinutes(ianaId, date);
-  const dst_active = current !== standard_offset_minutes;
-  return { dst_active, standard_offset_minutes };
-}
-
 export class TimezoneService {
   private readonly byIana: Map<
     string,
     { cities: string[]; countries: string[]; alternates: string[] }
   > = new Map();
   private readonly byCountry: Map<string, string[]> = new Map();
-  private readonly byCity: Map<string, string> = new Map(); // lowercase city name → IANA id
-  /** Folded last segment of each multi-segment, non-Etc ID → that ID ("new york" → America/New_York). */
-  private readonly byLocation: Map<string, string> = new Map();
-  private readonly allIanaIds: string[];
+  private readonly resolver: TimezoneResolver;
 
   constructor() {
-    // Load tzdb supplementary metadata
-    const tzList = getTimeZones();
-
-    // Build indexes
-    for (const tz of tzList) {
-      const { name, mainCities, countryCode, group } = tz;
-      // Each entry in tzdb is one primary IANA ID
+    const rows = getTimeZones();
+    this.resolver = new TimezoneResolver(rows);
+    for (const { name, mainCities, countryCode, group } of rows) {
       this.byIana.set(name, {
         cities: mainCities,
         countries: [countryCode],
-        alternates: group.filter((g) => g !== name),
+        alternates: group.filter((id) => id !== name),
       });
-
-      // Country → [iana ids]
       const existing = this.byCountry.get(countryCode) ?? [];
       existing.push(name);
       this.byCountry.set(countryCode, existing);
-
-      // City → iana id, under the spelling as listed and its unaccented spelling
-      for (const city of mainCities) {
-        const key = city.toLowerCase();
-        this.byCity.set(key, name);
-        const unaccented = stripMarks(key);
-        if (unaccented !== key) this.byCity.set(unaccented, name);
-      }
-    }
-
-    // All IANA IDs from the runtime (superset of tzdb entries)
-    this.allIanaIds = Intl.supportedValuesOf('timeZone');
-
-    /**
-     * Location names: the last segment of every multi-segment ID outside Etc/. tzdb names join
-     * the runtime list because it carries legacy IDs (Asia/Calcutta, not Asia/Kolkata). A key
-     * naming two IDs is dropped (on both runtimes only "buenos aires": America/Buenos_Aires and
-     * America/Argentina/Buenos_Aires), so this step never picks between IDs. An ID listed in
-     * both sources is one candidate; the lists are not merged into a Set because hashing the
-     * runtime's ID strings makes every later split() over them slower on Node.
-     */
-    const ambiguous = new Set<string>();
-    for (const id of [...this.allIanaIds, ...this.byIana.keys()]) {
-      if (!id.includes('/') || id.startsWith('Etc/')) continue;
-      const key = foldSeparators(stripMarks(id.slice(id.lastIndexOf('/') + 1)));
-      const existing = this.byLocation.get(key);
-      if (existing === undefined) this.byLocation.set(key, id);
-      else if (existing !== id) ambiguous.add(key);
-    }
-    for (const key of ambiguous) this.byLocation.delete(key);
-  }
-
-  /** Check whether an IANA ID is valid by attempting to use it with Intl */
-  private isValidIana(ianaId: string): boolean {
-    try {
-      new Intl.DateTimeFormat('en-US', { timeZone: ianaId });
-      return true;
-    } catch {
-      return false;
     }
   }
 
-  /** Public wrapper for resolveIanaId — used by tool handlers for pre-validation */
-  resolveIanaIdPublic(query: string): string | null {
-    return this.resolveIanaId(query);
+  /** Resolve an exact ID and build its record, without city or country lookup. */
+  readNamedZone(query: string): TimezoneRecord | undefined {
+    const id = this.resolver.exactId(query);
+    return id ? this.buildRecord(id) : undefined;
   }
 
-  /** Public wrapper for isValidIana — used by tool handlers for pre-validation */
-  isValidIanaPublic(ianaId: string): boolean {
-    return this.isValidIana(ianaId);
+  /** Resolve conversion operands to candidates, including exact numeric UTC offsets. */
+  conversionCandidates(query: string): string[] {
+    return this.resolver.candidates(query, true);
   }
 
   /**
@@ -222,9 +141,7 @@ export class TimezoneService {
    *      valid instants and are intentionally allowed — spring-forward gaps only.)
    *
    * Returns null when convertible, or a DatetimeIssue for the handler to raise as
-   * invalid_datetime. Sibling of resolveIanaIdPublic / isValidIanaPublic — the handler calls
-   * it before convert(), and only after resolvedFromTz has passed isValidIanaPublic (an
-   * invalid zone would throw inside the Intl offset calls).
+   * invalid_datetime. The handler calls this after resolving the source timezone.
    */
   validateConvertibleDatetime(datetime: string, resolvedFromTz: string): DatetimeIssue | null {
     const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
@@ -270,84 +187,25 @@ export class TimezoneService {
     return this.byCountry.get(countryCode.toUpperCase()) ?? [];
   }
 
-  /** Resolve a query to an IANA timezone ID, or null when no step matches */
-  private resolveIanaId(query: string): string | null {
-    // Reject empty or whitespace-only strings — startsWith('') matches everything
-    if (!query.trim()) return null;
-
-    // Handle UTC and GMT aliases — valid IANA identifiers not in tzdb or Intl.supportedValuesOf
-    const utcAliases: Record<string, string> = {
-      utc: 'UTC',
-      gmt: 'UTC',
-      'etc/utc': 'UTC',
-      'etc/gmt': 'UTC',
-    };
-    const utcAlias = utcAliases[query.toLowerCase()];
-    if (utcAlias) return utcAlias;
-
-    // Exact IANA match (case-insensitive)
-    const queryLower = query.toLowerCase();
-    const exactMatch = this.allIanaIds.find((id) => id.toLowerCase() === queryLower);
-    if (exactMatch) return exactMatch;
-
-    // Check if it's a timezone name in tzdb
-    const tzdbMatch = [...this.byIana.keys()].find((id) => id.toLowerCase() === queryLower);
-    if (tzdbMatch) return tzdbMatch;
-
-    // City match
-    const cityMatch = this.byCity.get(queryLower);
-    if (cityMatch) return cityMatch;
-
-    // Partial IANA ID match (e.g., "Tokyo" → "Asia/Tokyo")
-    const partialIana = this.allIanaIds.find((id) => {
-      const parts = id.split('/');
-      return parts.some(
-        (p) => p.toLowerCase() === queryLower || p.toLowerCase().startsWith(queryLower),
-      );
-    });
-    if (partialIana) return partialIana;
-
-    /**
-     * Last, so every query an earlier step resolves keeps its answer: a city spelled with
-     * different accents ("łodź"), then an exact location name written with spaces, hyphens,
-     * or periods ("New York", "St. Lucia", "Port au Prince"). No prefix matching here.
-     */
-    const unaccented = stripMarks(query);
-    return this.byCity.get(unaccented) ?? this.byLocation.get(foldSeparators(unaccented)) ?? null;
-  }
-
-  buildRecord(ianaId: string, at?: Date): TimezoneRecord {
+  private buildRecord(ianaId: string, at?: Date): TimezoneRecord {
     const date = at ?? new Date();
-    const { dst_active, standard_offset_minutes } = isDstActive(ianaId, date);
-    const current_offset_minutes = getIntlOffsetMinutes(ianaId, date);
-
-    const meta = this.byIana.get(ianaId);
-
-    // Get abbreviations for summer and winter
     const jan = new Date(date.getFullYear(), 0, 15);
     const jul = new Date(date.getFullYear(), 6, 15);
-    const janAbbr = getIntlAbbreviation(ianaId, jan);
-    const julAbbr = getIntlAbbreviation(ianaId, jul);
-    const dstAbbr =
-      janAbbr !== julAbbr
-        ? current_offset_minutes > standard_offset_minutes
-          ? julAbbr
-          : janAbbr
-        : null;
-    const stdAbbr =
-      janAbbr !== julAbbr
-        ? standard_offset_minutes <= getIntlOffsetMinutes(ianaId, jan)
-          ? janAbbr
-          : julAbbr
-        : janAbbr;
+    const janOffset = getIntlOffsetMinutes(ianaId, jan);
+    const julOffset = getIntlOffsetMinutes(ianaId, jul);
+    const standard_offset_minutes = Math.min(janOffset, julOffset);
+    const standardDate = janOffset <= julOffset ? jan : jul;
+    const current_offset_minutes = getIntlOffsetMinutes(ianaId, date);
+    const dst_active = current_offset_minutes !== standard_offset_minutes;
+    const meta = this.byIana.get(ianaId);
 
     return {
       iana_id: ianaId,
       current_offset_hours: Math.round(current_offset_minutes * 100) / 6000, // minutes → hours with 2 decimal precision
       standard_offset_hours: Math.round(standard_offset_minutes * 100) / 6000,
       dst_active,
-      dst_abbreviation: dst_active ? dstAbbr : null,
-      standard_abbreviation: stdAbbr,
+      dst_abbreviation: dst_active ? getIntlAbbreviation(ianaId, date) : null,
+      standard_abbreviation: getIntlAbbreviation(ianaId, standardDate),
       major_cities: meta?.cities ?? [],
       countries: meta?.countries ?? [],
       alternate_names: meta?.alternates ?? [],
@@ -367,27 +225,25 @@ export class TimezoneService {
       if (tzIds.length === 0) {
         // If auto and nothing found by country, fall through to IANA
         if (by === 'country') {
-          return;
+          return undefined;
         }
       } else {
         return tzIds.map((id) => this.buildRecord(id, at));
       }
     }
 
-    // IANA / partial name lookup
-    const ianaId = this.resolveIanaId(query);
-    if (!ianaId) {
-      return;
-    }
-    return [this.buildRecord(ianaId, at)];
+    const ids = this.resolver.candidates(query);
+    return ids.length > 0 ? ids.map((id) => this.buildRecord(id, at)) : undefined;
   }
 
-  convert(datetime: string, fromTz: string, toTz: string, ctx: Context): ConversionResult {
-    ctx.log.debug('Timezone convert', { datetime, fromTz, toTz });
-
-    // Resolve timezone IDs — pre-validated by the handler before delegating here
-    const resolvedFrom = this.resolveIanaId(fromTz) ?? fromTz;
-    const resolvedTo = this.resolveIanaId(toTz) ?? toTz;
+  /** Converts using the same resolved IDs the handler used to validate the wall clock. */
+  convert(
+    datetime: string,
+    resolvedFrom: string,
+    resolvedTo: string,
+    ctx: Context,
+  ): ConversionResult {
+    ctx.log.debug('Timezone convert', { datetime, fromTz: resolvedFrom, toTz: resolvedTo });
 
     // Parse the input datetime as local time in the source timezone
     // ISO 8601 local format: "2026-05-24T15:30:00" — format pre-validated by the handler

@@ -6,6 +6,7 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getMimeService } from '@/services/mime/mime-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 const AlternativeSchema = z.object({
   type: z.string().describe('Alternative MIME type.'),
@@ -52,6 +53,7 @@ export const refMimeType = tool('ref_mime_type', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'The MIME type or file extension is not recognized.',
       recovery:
@@ -69,9 +71,10 @@ export const refMimeType = tool('ref_mime_type', {
     const result = getMimeService().lookup(input.query, ctx);
     if (!result) {
       const normalized = input.query.startsWith('.') ? input.query.slice(1) : input.query;
+      const display = escapeCallerText(input.query);
       const msg = normalized.includes('/')
-        ? `MIME type "${input.query}" not found. Check spelling or use the full IANA type string (e.g., "application/json").`
-        : `No MIME type found for extension "${input.query}". Check spelling or use the full IANA type string (e.g., "image/jpeg"). Common extensions: js, ts, json, html, css, png, jpg, pdf.`;
+        ? `MIME type "${display}" not found. Check spelling or use the full IANA type string (e.g., "application/json").`
+        : `No MIME type found for extension "${display}". Check spelling or use the full IANA type string (e.g., "image/jpeg"). Common extensions: js, ts, json, html, css, png, jpg, pdf.`;
       throw ctx.fail('no_match', msg);
     }
     return result;

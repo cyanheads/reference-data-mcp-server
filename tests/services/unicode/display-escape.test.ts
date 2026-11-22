@@ -12,6 +12,7 @@ import {
   codePointHex,
   codePointsOf,
   codeSpan,
+  escapeCallerText,
   escapeCallerToken,
   isDisplaySafe,
 } from '@/services/unicode/display-escape.js';
@@ -217,6 +218,28 @@ describe('codePointHex and codePointEscape', () => {
   ])('%i → %s, %s', (codePoint, hex, escaped) => {
     expect(codePointHex(codePoint)).toBe(hex);
     expect(codePointEscape(codePoint)).toBe(escaped);
+  });
+});
+
+describe('escapeCallerText', () => {
+  it.each([
+    ['controls', 'line\tone\nline two', 'line\\u{0009}one\\u{000A}line two'],
+    ['line and paragraph separators', 'a\u2028b\u2029c', 'a\\u{2028}b\\u{2029}c'],
+    ['a format character', 'a\u00adb', 'a\\u{00AD}b'],
+    [
+      'default-ignorable combining and supplementary characters',
+      'a\ufe0f\u{e0100}',
+      'a\\u{FE0F}\\u{E0100}',
+    ],
+    ['a reserved default-ignorable', 'a\u2065b', 'a\\u{2065}b'],
+    ['visible text, spaces and combining marks', ' Café e\u0301 😀 ', ' Café e\u0301 😀 '],
+    ['the empty string', '', ''],
+  ])('renders %s', (_label, input, expected) => {
+    expect(escapeCallerText(input)).toBe(expected);
+  });
+
+  it('keeps long visible fragments whole', () => {
+    expect(escapeCallerText('Café '.repeat(12))).toBe('Café '.repeat(12));
   });
 });
 

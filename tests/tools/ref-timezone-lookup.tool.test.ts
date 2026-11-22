@@ -27,6 +27,138 @@ function cpuMicrosPerCall(fn: () => void, calls: number, rounds = 3): number {
 }
 
 describe('refTimezoneLookup', () => {
+  it('labels the daylight and standard offsets independently of hemisphere', async () => {
+    const zone = 'Australia/Melbourne';
+    const january = '2026-01-15T12:00:00Z';
+    const july = '2026-07-15T12:00:00Z';
+    const localName = (at: string) =>
+      new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' })
+        .formatToParts(new Date(at))
+        .find((part) => part.type === 'timeZoneName')?.value;
+    const summer = localName(january);
+    const winter = localName(july);
+    expect(summer).toBeTruthy();
+    expect(winter).toBeTruthy();
+    expect(summer).not.toBe(winter);
+    for (const at of [january, july]) {
+      const result = await runToolContract(refTimezoneLookup, { query: zone, at });
+      expect(result.structuredContent).toMatchObject({
+        timezones: [
+          {
+            dst_active: at === january,
+            dst_abbreviation: at === january ? summer : null,
+            standard_abbreviation: winter,
+          },
+        ],
+      });
+      expect(expectText(result.content)).toContain(`Standard abbreviation:** ${winter}`);
+    }
+  });
+
+  it.each(['auto', 'iana'] as const)(
+    'rejects a conversion-only numeric offset in %s lookup',
+    async (by) => {
+      const result = await runToolContract(refTimezoneLookup, { query: '+05:00', by });
+      expect(result.structuredContent).toMatchObject({ error: { data: { reason: 'no_match' } } });
+      expect(expectText(result.content)).toContain('no_match');
+    },
+  );
+
+  it('gives country lookup its ordinary recovery for signed offset input', async () => {
+    const result = await runToolContract(refTimezoneLookup, { query: 'GMT+5', by: 'country' });
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: { reason: 'no_match', recovery: { hint: expect.stringContaining('country code') } },
+      },
+    });
+    expect(expectText(result.content)).not.toContain('inverted');
+  });
+
+  it.each([
+    ['Canberra', ['Australia/Canberra']],
+    ['Rosario', ['America/Rosario']],
+    ['Choibalsan', ['Asia/Choibalsan']],
+    ['Montréal', ['America/Montreal']],
+    ['Melbourne', ['Australia/Melbourne']],
+    ['Kingston', ['America/Jamaica', 'Pacific/Norfolk']],
+    ['Victoria', ['America/Vancouver', 'Asia/Hong_Kong', 'Indian/Mahe']],
+    ['Valencia', ['America/Caracas', 'Europe/Madrid']],
+    ['Sydney', ['America/Halifax', 'Australia/Sydney']],
+    ['Saint-Pierre', ['America/Miquelon', 'Indian/Reunion']],
+    ['Tripoli', ['Africa/Tripoli', 'Asia/Beirut']],
+    ['San Jose', ['America/Los_Angeles']],
+    ['San José', ['America/Costa_Rica']],
+    ['US/Eastern', ['US/Eastern']],
+    ['Japan', ['Japan']],
+    ['Asia/Istanbul', ['Asia/Istanbul']],
+    ['America/Indiana/Indianapolis', ['America/Indiana/Indianapolis']],
+    ['Etc/GMT+5', ['Etc/GMT+5']],
+  ] as const)('returns the timezone candidates for %s on both surfaces', async (query, ids) => {
+    const result = await runToolContract(refTimezoneLookup, {
+      query,
+      at: '2026-01-15T12:00:00Z',
+    });
+    expect(result.isError).toBeFalsy();
+    const output = refTimezoneLookup.output!.parse(result.structuredContent);
+    expect(output.timezones.map((record) => record.iana_id)).toEqual(ids);
+    const text = expectText(result.content);
+    for (const id of ids) expect(text).toContain(`## ${id}\n`);
+  });
+
+  it.each([
+    'America/Campo_Grande',
+    'America/Cordoba',
+    'America/Coyhaique',
+    'America/Creston',
+    'America/Cuiaba',
+    'America/Fort_Nelson',
+    'America/Juneau',
+    'America/Mazatlan',
+    'America/Moncton',
+    'America/Porto_Velho',
+    'America/Rankin_Inlet',
+    'America/Scoresbysund',
+    'Antarctica/Rothera',
+    'Antarctica/Vostok',
+    'Asia/Anadyr',
+    'Asia/Barnaul',
+    'Asia/Hebron',
+    'Asia/Krasnoyarsk',
+    'Asia/Magadan',
+    'Asia/Samarkand',
+    'Asia/Tomsk',
+    'Asia/Yakutsk',
+    'Australia/Melbourne',
+    'Europe/Saratov',
+    'Pacific/Kwajalein',
+  ])('matches a tzdb group member by its own location in %s', (id) => {
+    const location = id.slice(id.lastIndexOf('/') + 1);
+    for (const query of [location.replaceAll('_', ' '), location.replaceAll('_', '-')]) {
+      expect(getTimezoneService().conversionCandidates(query)).toEqual([id]);
+    }
+  });
+
+  it.each([
+    ['Córdoba', 'America/Cordoba'],
+    ['Cuiabá', 'America/Cuiaba'],
+    ['Mazatlán', 'America/Mazatlan'],
+  ])('preserves city accents when choosing a group member for %s', (query, id) => {
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([id]);
+  });
+
+  it.each([
+    ['US', 'country'],
+    ['GMT+5', 'inverted'],
+    ['UTC-5', 'inverted'],
+  ])('gives actionable recovery when lookup by IANA rejects %s', async (query, hint) => {
+    const result = await runToolContract(refTimezoneLookup, { query, by: 'iana' });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: { data: { reason: 'no_match', recovery: { hint: expect.stringContaining(hint) } } },
+    });
+    expect(expectText(result.content)).toContain(hint);
+  });
+
   it('looks up America/New_York by exact IANA ID', async () => {
     const ctx = createMockContext({ errors: refTimezoneLookup.errors });
     const input = refTimezoneLookup.input.parse({ query: 'America/New_York', by: 'iana' });
@@ -113,7 +245,7 @@ describe('refTimezoneLookup', () => {
           dst_active: true,
           dst_abbreviation: 'EDT',
           standard_abbreviation: 'EST',
-          major_cities: ['New York', 'Boston'],
+          major_cities: ['New York', 'Boston', 'Baltimore', 'Miami', 'Atlanta', 'Philadelphia'],
           countries: ['US'],
         },
       ],
@@ -126,7 +258,9 @@ describe('refTimezoneLookup', () => {
     expect(text).toContain('-5');
     expect(text).toContain('Yes');
     expect(text).toContain('EDT');
-    expect(text).toContain('New York');
+    expect(text).toContain(
+      '**Major cities:** New York, Boston, Baltimore, Miami, Atlanta, Philadelphia',
+    );
     expect(text).toContain('2026-07-15');
   });
 
@@ -211,12 +345,12 @@ describe('refTimezoneLookup', () => {
     ];
     expect(examples.length, 'the description names no example').toBeGreaterThan(0);
     for (const [, query, expected] of examples) {
-      expect(getTimezoneService().resolveIanaIdPublic(query!)).toBe(expected);
+      expect(getTimezoneService().conversionCandidates(query!)).toEqual([expected]);
     }
   });
 });
 
-describe('TimezoneService.resolveIanaIdPublic — queries that resolve today', () => {
+describe('TimezoneService.conversionCandidates — queries that resolve today', () => {
   it.each([
     // tzdb mainCities keys, including the unaccented spelling of an accented city
     ['new york city', 'America/New_York'],
@@ -240,20 +374,17 @@ describe('TimezoneService.resolveIanaIdPublic — queries that resolve today', (
     ['Tokyo', 'Asia/Tokyo'],
     ['Los Angeles', 'America/Los_Angeles'],
     ['Buenos Aires', 'America/Argentina/Buenos_Aires'],
-    // a segment prefix
-    ['Honol', 'Pacific/Honolulu'],
-    ['reykj', 'Atlantic/Reykjavik'],
     // UTC aliases
     ['utc', 'UTC'],
     ['GMT', 'UTC'],
     ['Etc/UTC', 'UTC'],
     ['etc/gmt', 'UTC'],
   ])('%s → %s', (query, expected) => {
-    expect(getTimezoneService().resolveIanaIdPublic(query)).toBe(expected);
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([expected]);
   });
 });
 
-describe('TimezoneService.resolveIanaIdPublic — location names written with spaces (#42)', () => {
+describe('TimezoneService.conversionCandidates — location names written with spaces (#42)', () => {
   it.each([
     ['El Aaiun', 'Africa/El_Aaiun'],
     ['La Rioja', 'America/Argentina/La_Rioja'],
@@ -294,7 +425,7 @@ describe('TimezoneService.resolveIanaIdPublic — location names written with sp
     ['Porto Novo', 'Africa/Porto-Novo'],
     ['Ust Nera', 'Asia/Ust-Nera'],
   ])('%s → %s', (query, expected) => {
-    expect(getTimezoneService().resolveIanaIdPublic(query)).toBe(expected);
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([expected]);
   });
 
   it.each([
@@ -308,7 +439,7 @@ describe('TimezoneService.resolveIanaIdPublic — location names written with sp
     ['Hồ Chí Minh'.normalize('NFD'), 'Asia/Ho_Chi_Minh'],
     ['Bahía Banderas', 'America/Bahia_Banderas'],
   ])('variant %j → %s', (query, expected) => {
-    expect(getTimezoneService().resolveIanaIdPublic(query)).toBe(expected);
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([expected]);
   });
 
   it.each([
@@ -318,6 +449,9 @@ describe('TimezoneService.resolveIanaIdPublic — location names written with sp
     'Saint Paul',
     'Ho Chi', // the location step matches whole names only
     'Seattle',
+    'Honol',
+    'Reykj',
+    'Auckl',
     '',
     '   ',
     // a location name two IDs share (America/Buenos_Aires, America/Argentina/Buenos_Aires)
@@ -325,11 +459,11 @@ describe('TimezoneService.resolveIanaIdPublic — location names written with sp
     // an Etc/ ID whose sign reads backwards (Etc/GMT-5 is UTC+5)
     'GMT 5',
   ])('%j stays unresolved', (query) => {
-    expect(getTimezoneService().resolveIanaIdPublic(query)).toBeNull();
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([]);
   });
 });
 
-describe('TimezoneService.resolveIanaIdPublic — accented tzdb cities typed without accents (#42)', () => {
+describe('TimezoneService.conversionCandidates — accented tzdb cities typed without accents (#42)', () => {
   it.each([
     ['Nis', 'Europe/Belgrade'],
     ['Kosice', 'Europe/Bratislava'],
@@ -362,11 +496,11 @@ describe('TimezoneService.resolveIanaIdPublic — accented tzdb cities typed wit
     ['Can Tho', 'Asia/Ho_Chi_Minh'],
     ['Hamhung', 'Asia/Pyongyang'],
   ])('%s → %s', (query, expected) => {
-    expect(getTimezoneService().resolveIanaIdPublic(query)).toBe(expected);
+    expect(getTimezoneService().conversionCandidates(query)).toEqual([expected]);
   });
 });
 
-describe('TimezoneService.resolveIanaIdPublic — cost on long unmatched text', () => {
+describe('TimezoneService.conversionCandidates — cost on long unmatched text', () => {
   const BASE_CHARS = 5_000;
   const MAX_CHARS = 320_000;
 
@@ -383,14 +517,14 @@ describe('TimezoneService.resolveIanaIdPublic — cost on long unmatched text', 
       const svc = getTimezoneService();
       const base = make(BASE_CHARS);
       // Unmatched text runs every resolver step, the accent and separator fold included.
-      expect(svc.resolveIanaIdPublic(base)).toBeNull();
+      expect(svc.conversionCandidates(base)).toEqual([]);
       for (let size = BASE_CHARS * 2; size <= MAX_CHARS; size *= 2) {
         const input = make(size);
         const multiple = size / BASE_CHARS;
         let growth = Number.POSITIVE_INFINITY;
         for (let pair = 0; pair < 3; pair++) {
-          const baseCost = cpuMicrosPerCall(() => svc.resolveIanaIdPublic(base), 2 * multiple);
-          const sizeCost = cpuMicrosPerCall(() => svc.resolveIanaIdPublic(input), 2);
+          const baseCost = cpuMicrosPerCall(() => svc.conversionCandidates(base), 2 * multiple);
+          const sizeCost = cpuMicrosPerCall(() => svc.conversionCandidates(input), 2);
           growth = Math.min(growth, sizeCost / baseCost);
         }
         expect(
@@ -399,7 +533,7 @@ describe('TimezoneService.resolveIanaIdPublic — cost on long unmatched text', 
         ).toBeLessThan(4 * multiple);
       }
       const longest = make(MAX_CHARS);
-      expect(cpuMicrosPerCall(() => svc.resolveIanaIdPublic(longest), 2)).toBeLessThan(100_000);
+      expect(cpuMicrosPerCall(() => svc.conversionCandidates(longest), 2)).toBeLessThan(100_000);
     },
     0,
   );

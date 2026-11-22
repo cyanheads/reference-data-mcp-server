@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-11-22 07:01:46
+Generated on: 2026-11-22 09:20:33
 
 ```text
 reference-data-mcp-server/
@@ -186,6 +186,7 @@ reference-data-mcp-server/
 │   │   ├── mime/
 │   │   │   └── mime-service.ts
 │   │   ├── timezone/
+│   │   │   ├── timezone-resolver.ts
 │   │   │   ├── timezone-service.ts
 │   │   │   └── types.ts
 │   │   ├── unicode/
@@ -220,6 +221,7 @@ reference-data-mcp-server/
 │   │       ├── unicode-service.test.ts
 │   │       └── unicode-tables.test.ts
 │   ├── tools/
+│   │   ├── caller-display.test.ts
 │   │   ├── enrichment-markdown.test.ts
 │   │   ├── ref-constant-lookup.tool.test.ts
 │   │   ├── ref-element-lookup.tool.test.ts

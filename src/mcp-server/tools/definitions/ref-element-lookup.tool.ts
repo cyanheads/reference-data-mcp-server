@@ -6,6 +6,7 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { DATASET_VERSION, getElementsService } from '@/services/elements/elements-service.js';
+import { escapeCallerText } from '@/services/unicode/display-escape.js';
 
 export const refElementLookup = tool('ref_element_lookup', {
   title: 'Element Lookup',
@@ -17,7 +18,7 @@ export const refElementLookup = tool('ref_element_lookup', {
     query: z
       .string()
       .describe(
-        'Element name (e.g., "tungsten"), chemical symbol (e.g., "W"), or atomic number as a string (e.g., "74").',
+        'Element name (e.g., "tungsten"), chemical symbol (e.g., "W"), or atomic number as a string of ASCII digits (e.g., "74").',
       ),
     by: z
       .enum(['auto', 'name', 'symbol', 'number'])
@@ -103,6 +104,7 @@ export const refElementLookup = tool('ref_element_lookup', {
   errors: [
     {
       reason: 'no_match',
+      severity: 'notice',
       code: JsonRpcErrorCode.NotFound,
       when: 'No element matched the query.',
       recovery:
@@ -118,7 +120,7 @@ export const refElementLookup = tool('ref_element_lookup', {
     if (!el) {
       throw ctx.fail(
         'no_match',
-        `No element matched "${input.query}". Use ref_element_search to browse by category, or check the IUPAC name or symbol spelling.`,
+        `No element matched "${escapeCallerText(input.query)}". Use ref_element_search to browse by category, or check the IUPAC name or symbol spelling.`,
       );
     }
     return {
