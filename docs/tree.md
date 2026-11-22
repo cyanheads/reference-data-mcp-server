@@ -1,6 +1,6 @@
 # reference-data-mcp-server - Directory Structure
 
-Generated on: 2026-10-28 12:53:20
+Generated on: 2026-11-22 07:01:46
 
 ```text
 reference-data-mcp-server/
@@ -26,6 +26,7 @@ reference-data-mcp-server/
 ├── changelog/
 │   ├── 0.1.x/
 │   ├── 0.2.x/
+│   ├── 0.3.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -130,6 +131,7 @@ reference-data-mcp-server/
 │   ├── clean-mcpb.ts
 │   ├── clean.ts
 │   ├── devcheck.ts
+│   ├── generate-unicode-data.ts
 │   ├── install-otel.ts
 │   ├── lint-mcp.ts
 │   ├── lint-packaging.ts
@@ -142,6 +144,10 @@ reference-data-mcp-server/
 │       └── SKILL.md
 ├── src/
 │   ├── data/
+│   │   ├── unicode/
+│   │   │   ├── names.ts
+│   │   │   ├── normalization.ts
+│   │   │   └── properties.ts
 │   │   ├── http-status-codes.ts
 │   │   ├── periodic-table.ts
 │   │   └── physical-constants.ts
@@ -164,6 +170,7 @@ reference-data-mcp-server/
 │   │           ├── ref-mime-type.tool.ts
 │   │           ├── ref-timezone-convert.tool.ts
 │   │           ├── ref-timezone-lookup.tool.ts
+│   │           ├── ref-unicode-lookup.tool.ts
 │   │           └── ref-unit-convert.tool.ts
 │   ├── services/
 │   │   ├── constants/
@@ -181,14 +188,24 @@ reference-data-mcp-server/
 │   │   ├── timezone/
 │   │   │   ├── timezone-service.ts
 │   │   │   └── types.ts
+│   │   ├── unicode/
+│   │   │   ├── display-escape.ts
+│   │   │   ├── grapheme-clusters.ts
+│   │   │   ├── types.ts
+│   │   │   ├── unicode-service.ts
+│   │   │   └── unicode-tables.ts
 │   │   └── units/
 │   │       └── units-service.ts
 │   ├── types/
 │   │   └── convert-units.d.ts
 │   └── index.ts
 ├── tests/
+│   ├── fixtures/
+│   │   └── unicode/
+│   │       └── GraphemeBreakTest-18.0.0.txt
 │   ├── prompts/
 │   ├── resources/
+│   │   ├── read-resource.ts
 │   │   ├── ref-countries.resource.test.ts
 │   │   ├── ref-elements.resource.test.ts
 │   │   └── ref-timezones.resource.test.ts
@@ -196,6 +213,12 @@ reference-data-mcp-server/
 │   │   └── mcpb-runtime.test.ts
 │   ├── security/
 │   │   └── injection-and-edge-cases.test.ts
+│   ├── services/
+│   │   └── unicode/
+│   │       ├── display-escape.test.ts
+│   │       ├── grapheme-clusters.test.ts
+│   │       ├── unicode-service.test.ts
+│   │       └── unicode-tables.test.ts
 │   ├── tools/
 │   │   ├── enrichment-markdown.test.ts
 │   │   ├── ref-constant-lookup.tool.test.ts
@@ -207,7 +230,9 @@ reference-data-mcp-server/
 │   │   ├── ref-mime-type.tool.test.ts
 │   │   ├── ref-timezone-convert.tool.test.ts
 │   │   ├── ref-timezone-lookup.tool.test.ts
+│   │   ├── ref-unicode-lookup.tool.test.ts
 │   │   └── ref-unit-convert.tool.test.ts
+│   ├── index.test.ts
 │   └── test-helpers.ts
 ├── .dockerignore
 ├── .env.example
@@ -226,6 +251,7 @@ reference-data-mcp-server/
 ├── LICENSE
 ├── manifest.json
 ├── mcp.json
+├── NOTICE
 ├── package.json
 ├── plugin.json
 ├── README.md

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.3.0](changelog/0.3.x/0.3.0.md) — 2026-11-21 · ⚠️ Breaking
+
+Adds ref_unicode_lookup for code point and hidden-character lookup, resolves timezone location names written with spaces, accepts mph and kph in ref_unit_convert, and decodes resource IDs once; the city name Rishon LeTsiyyon no longer resolves after the @vvo/tzdb update.
+
 ## [0.2.0](changelog/0.2.x/0.2.0.md) — 2026-10-28
 
 Publishes a country/timezone scheduling guide over MCP and plugins, adopts mcp-ts-core 0.13.18 with the HTTP memory-retention fix from 0.13.17, and refreshes plugin and desktop-bundle packaging.

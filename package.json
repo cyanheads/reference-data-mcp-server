@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/reference-data-mcp-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "io.github.cyanheads/reference-data-mcp-server",
   "description": "Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, MIME types, and Unicode characters via MCP. STDIO or Streamable HTTP.",
   "type": "module",
