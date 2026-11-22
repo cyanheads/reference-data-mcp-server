@@ -6,7 +6,8 @@
  * @module tests/security/injection-and-edge-cases.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refCountriesResource } from '@/mcp-server/resources/definitions/ref-countries.resource.js';
 import { refElementsResource } from '@/mcp-server/resources/definitions/ref-elements.resource.js';
@@ -23,6 +24,7 @@ import { refHttpStatus } from '@/mcp-server/tools/definitions/ref-http-status.to
 import { refMimeType } from '@/mcp-server/tools/definitions/ref-mime-type.tool.js';
 import { refTimezoneConvert } from '@/mcp-server/tools/definitions/ref-timezone-convert.tool.js';
 import { refTimezoneLookup } from '@/mcp-server/tools/definitions/ref-timezone-lookup.tool.js';
+import { refUnicodeLookup } from '@/mcp-server/tools/definitions/ref-unicode-lookup.tool.js';
 import { refUnitConvert } from '@/mcp-server/tools/definitions/ref-unit-convert.tool.js';
 import { initConstantsService } from '@/services/constants/constants-service.js';
 import { initElementsService } from '@/services/elements/elements-service.js';
@@ -30,6 +32,7 @@ import { initGeoService } from '@/services/geo/geo-service.js';
 import { initHttpStatusService } from '@/services/http-status/http-status-service.js';
 import { initMimeService } from '@/services/mime/mime-service.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
+import { initUnicodeService } from '@/services/unicode/unicode-service.js';
 import { initUnitsService } from '@/services/units/units-service.js';
 import { expectSync } from '../test-helpers.js';
 
@@ -41,6 +44,7 @@ beforeAll(() => {
   initHttpStatusService();
   initMimeService();
   initUnitsService();
+  initUnicodeService();
 });
 
 /** Common injection payloads to test across string inputs. */
@@ -55,7 +59,7 @@ const PATH_TRAVERSAL = '../../../etc/passwd';
 const SECRET_MARKER = 'xSECRET_TEST_MARKER_xTOKEN_VALUE_xPRIVATE_KEY_x';
 const NULL_BYTES = '\x00\x01\x02\x03';
 const PROTOTYPE_POLLUTION = '__proto__[admin]';
-const UNICODE_CONTROL = '‮​ '; // RTL override + zero-width + null
+const UNICODE_CONTROL = String.fromCodePoint(0x202e, 0x200b, 0x0000); // RTL override + zero-width + null
 const OVERSIZED_STRING = 'A'.repeat(100_000);
 
 /**
@@ -415,13 +419,18 @@ describe('security — unit convert tool', () => {
 
 describe('security — resources', () => {
   it('ref_countries resource: path traversal in alpha2 throws NotFound, not crash', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: PATH_TRAVERSAL });
-    expect(() => refCountriesResource.handler(params, ctx)).toThrow();
+    expect(() => refCountriesResource.handler(params, ctx)).toThrow(
+      expect.objectContaining({
+        code: JsonRpcErrorCode.NotFound,
+        data: expect.objectContaining({ reason: 'country_not_found' }),
+      }),
+    );
   });
 
   it('ref_countries resource: output does not contain raw injection payload', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     // Valid country — verify its output is clean
     const params = refCountriesResource.params!.parse({ alpha2: 'US' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
@@ -432,19 +441,29 @@ describe('security — resources', () => {
   });
 
   it('ref_elements resource: HTML injection in number throws NotFound', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementsResource.errors });
     const params = refElementsResource.params!.parse({ number: HTML_INJECTION });
-    expect(() => refElementsResource.handler(params, ctx)).toThrow();
+    expect(() => refElementsResource.handler(params, ctx)).toThrow(
+      expect.objectContaining({
+        code: JsonRpcErrorCode.NotFound,
+        data: expect.objectContaining({ reason: 'invalid_atomic_number' }),
+      }),
+    );
   });
 
   it('ref_elements resource: oversized string in number throws NotFound', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementsResource.errors });
     const params = refElementsResource.params!.parse({ number: OVERSIZED_STRING });
-    expect(() => refElementsResource.handler(params, ctx)).toThrow();
+    expect(() => refElementsResource.handler(params, ctx)).toThrow(
+      expect.objectContaining({
+        code: JsonRpcErrorCode.NotFound,
+        data: expect.objectContaining({ reason: 'invalid_atomic_number' }),
+      }),
+    );
   });
 
   it('ref_elements resource: valid output does not contain injection payloads', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refElementsResource.errors });
     const params = refElementsResource.params!.parse({ number: '6' });
     const result = expectSync(refElementsResource.handler(params, ctx));
     const serialized = JSON.stringify(result);
@@ -454,13 +473,18 @@ describe('security — resources', () => {
   });
 
   it('ref_timezones resource: HTML injection in iana_id throws NotFound', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezonesResource.errors });
     const params = refTimezonesResource.params!.parse({ iana_id: HTML_INJECTION });
-    expect(() => refTimezonesResource.handler(params, ctx)).toThrow();
+    expect(() => refTimezonesResource.handler(params, ctx)).toThrow(
+      expect.objectContaining({
+        code: JsonRpcErrorCode.NotFound,
+        data: expect.objectContaining({ reason: 'invalid_timezone' }),
+      }),
+    );
   });
 
   it('ref_timezones resource: valid output does not contain injection payloads', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezonesResource.errors });
     const params = refTimezonesResource.params!.parse({ iana_id: 'UTC' });
     const result = expectSync(refTimezonesResource.handler(params, ctx));
     const serialized = JSON.stringify(result);
@@ -470,12 +494,100 @@ describe('security — resources', () => {
   });
 
   it('ref_timezones slash-catch resource: injection in region/city always throws', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refTimezonesSlashCatchResource.errors });
     const params = refTimezonesSlashCatchResource.params!.parse({
       region: HTML_INJECTION,
       city: SQL_INJECTION,
     });
-    expect(() => refTimezonesSlashCatchResource.handler(params, ctx)).toThrow();
+    expect(() => refTimezonesSlashCatchResource.handler(params, ctx)).toThrow(
+      expect.objectContaining({
+        code: JsonRpcErrorCode.ValidationError,
+        data: expect.objectContaining({ reason: 'unencoded_slash' }),
+      }),
+    );
+  });
+});
+
+describe('security — unicode lookup tool', () => {
+  /** Characters no response surface may carry raw, or as a JSON \u escape. */
+  const HIDDEN = [0x202e, 0x200b, 0x0000, 0x0301, 0x00a0, 0x2028, 0xd800];
+  const jsonEscape = (codePoint: number) => `\\u${codePoint.toString(16).padStart(4, '0')}`;
+
+  function expectNoHiddenCharacters(serialized: string) {
+    for (const codePoint of HIDDEN) {
+      expect(serialized).not.toContain(String.fromCharCode(codePoint));
+      expect(serialized.toLowerCase()).not.toContain(jsonEscape(codePoint));
+    }
+  }
+
+  it('ref_unicode_lookup: oversized query fails the schema', () => {
+    expect(refUnicodeLookup.input.safeParse({ query: OVERSIZED_STRING }).success).toBe(false);
+    expect(refUnicodeLookup.input.safeParse({ query: 'A'.repeat(4097) }).success).toBe(false);
+    expect(refUnicodeLookup.input.safeParse({ query: '' }).success).toBe(false);
+    expect(refUnicodeLookup.input.safeParse({ query: 'A'.repeat(4096) }).success).toBe(true);
+  });
+
+  it('ref_unicode_lookup: unicode control payload returns records without the raw characters', async () => {
+    const result = await runToolContract(refUnicodeLookup, { query: UNICODE_CONTROL });
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as {
+      code_points: { code_point: string; char: unknown }[];
+    };
+    expect(structured.code_points.map((r) => [r.code_point, r.char])).toEqual([
+      ['U+202E', null],
+      ['U+200B', null],
+      ['U+0000', null],
+    ]);
+    const text = result.content
+      .map((block) => (block.type === 'text' ? block.text : ''))
+      .join('\n');
+    expectNoHiddenCharacters(text);
+    expectNoHiddenCharacters(JSON.stringify(result.structuredContent));
+  });
+
+  it.each([
+    [
+      'text',
+      String.fromCodePoint(0x202e, 0x200b, 0x0000, 0x0301, 0x00a0, 0x2028) +
+        String.fromCharCode(0xd800),
+    ],
+    ['code_point', 'U+202E U+200B U+0000 U+0301 U+00A0 U+2028 U+D800'],
+  ] as const)(
+    'ref_unicode_lookup: hidden characters read by %s reach neither surface raw',
+    async (by, query) => {
+      const result = await runToolContract(refUnicodeLookup, { query, by });
+      const structured = result.structuredContent as {
+        code_points: { code_point: string; char: unknown }[];
+      };
+      expect(structured.code_points.map((r) => [r.code_point, r.char])).toEqual([
+        ['U+202E', null],
+        ['U+200B', null],
+        ['U+0000', null],
+        ['U+0301', null],
+        ['U+00A0', null],
+        ['U+2028', null],
+        ['U+D800', null],
+      ]);
+      const text = result.content
+        .map((block) => (block.type === 'text' ? block.text : ''))
+        .join('\n');
+      expectNoHiddenCharacters(text);
+      expectNoHiddenCharacters(JSON.stringify(result.structuredContent));
+    },
+  );
+
+  it('ref_unicode_lookup: an error message escapes the caller token', async () => {
+    const result = await runToolContract(refUnicodeLookup, {
+      query: `U+${String.fromCodePoint(0x202e)}41`,
+      by: 'code_point',
+    });
+    expect(result.isError).toBe(true);
+    const text = result.content
+      .map((block) => (block.type === 'text' ? block.text : ''))
+      .join('\n');
+    expect(text).toContain('Token 1 (U+\\u{202E}41) is not a hexadecimal code point.');
+    expectNoHiddenCharacters(text);
+    expectNoHiddenCharacters(JSON.stringify(result.structuredContent));
   });
 });
 

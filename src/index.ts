@@ -22,6 +22,7 @@ import { refHttpStatus } from './mcp-server/tools/definitions/ref-http-status.to
 import { refMimeType } from './mcp-server/tools/definitions/ref-mime-type.tool.js';
 import { refTimezoneConvert } from './mcp-server/tools/definitions/ref-timezone-convert.tool.js';
 import { refTimezoneLookup } from './mcp-server/tools/definitions/ref-timezone-lookup.tool.js';
+import { refUnicodeLookup } from './mcp-server/tools/definitions/ref-unicode-lookup.tool.js';
 import { refUnitConvert } from './mcp-server/tools/definitions/ref-unit-convert.tool.js';
 // Services
 import { initConstantsService } from './services/constants/constants-service.js';
@@ -30,6 +31,7 @@ import { initGeoService } from './services/geo/geo-service.js';
 import { initHttpStatusService } from './services/http-status/http-status-service.js';
 import { initMimeService } from './services/mime/mime-service.js';
 import { initTimezoneService } from './services/timezone/timezone-service.js';
+import { initUnicodeService } from './services/unicode/unicode-service.js';
 import { initUnitsService } from './services/units/units-service.js';
 
 await createApp({
@@ -54,6 +56,7 @@ await createApp({
     refUnitConvert,
     refHttpStatus,
     refMimeType,
+    refUnicodeLookup,
   ],
   resources: [
     refCountriesResource,
@@ -61,10 +64,11 @@ await createApp({
     refTimezonesResource,
     refTimezonesSlashCatchResource,
   ],
+  decodeResourceParams: true,
   prompts: [],
   skills: 'skills',
   instructions:
-    'Pure in-memory reference data server. No external API calls, no auth required. Use ref_geo_lookup/search for country data, ref_timezone_lookup/convert for timezone operations, ref_element_lookup/search for periodic table, ref_constant_lookup for CODATA 2022 physical constants, ref_unit_convert for unit conversion, ref_http_status for HTTP status codes, ref_mime_type for MIME type and file extension lookups.',
+    'Pure in-memory reference data server. No external API calls, no auth required. Use ref_geo_lookup/search for country data, ref_timezone_lookup/convert for timezone operations, ref_element_lookup/search for periodic table, ref_constant_lookup for CODATA 2022 physical constants, ref_unit_convert for unit conversion, ref_http_status for HTTP status codes, ref_mime_type for MIME type and file extension lookups, and ref_unicode_lookup to identify the characters in a string (invisible, bidi-control, and combining ones included) or to look up a code point by U+XXXX or decimal.',
   // Public hosted-catalog server — serve full inventory without auth gate.
   // landing.requireAuth defaults to true when MCP_AUTH_MODE is jwt/oauth (0.9.13).
   landing: { requireAuth: false },
@@ -78,5 +82,6 @@ await createApp({
     initUnitsService();
     initHttpStatusService();
     initMimeService();
+    initUnicodeService();
   },
 });

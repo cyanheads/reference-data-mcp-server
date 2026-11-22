@@ -4,7 +4,7 @@
  */
 
 import { resource, z } from '@cyanheads/mcp-ts-core';
-import { notFound } from '@cyanheads/mcp-ts-core/errors';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { DATASET_VERSION, getElementsService } from '@/services/elements/elements-service.js';
 
 export const refElementsResource = resource('ref://elements/{number}', {
@@ -68,17 +68,27 @@ export const refElementsResource = resource('ref://elements/{number}', {
     dataset_version: z.string().describe('Dataset version identifier.'),
   }),
 
-  handler(params) {
+  errors: [
+    {
+      reason: 'invalid_atomic_number',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'The requested value is not an atomic number from 1 to 118.',
+      recovery:
+        'Use an atomic number from 1 to 118, or find the element by name or symbol with ref_element_lookup.',
+      severity: 'notice',
+    },
+  ],
+
+  handler(params, ctx) {
     const num = parseInt(params.number, 10);
-    if (Number.isNaN(num) || num < 1 || num > 118) {
-      throw notFound(
+    // The dataset holds exactly 1–118, so the lookup is also the range check (NaN included).
+    const el = getElementsService().getByNumber(num);
+    if (!el) {
+      throw ctx.fail(
+        'invalid_atomic_number',
         `Atomic number "${params.number}" is not valid. Use an integer from 1 to 118.`,
         { number: params.number },
       );
-    }
-    const el = getElementsService().getByNumber(num);
-    if (!el) {
-      throw notFound(`Element with atomic number ${num} not found.`, { number: num });
     }
     return { ...el, dataset_version: DATASET_VERSION };
   },

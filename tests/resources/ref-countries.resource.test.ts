@@ -10,6 +10,7 @@ import { refCountriesResource } from '@/mcp-server/resources/definitions/ref-cou
 import { initGeoService } from '@/services/geo/geo-service.js';
 import { initTimezoneService } from '@/services/timezone/timezone-service.js';
 import { expectSync } from '../test-helpers.js';
+import { createResourceReader, watchResourceFailureLogs } from './read-resource.js';
 
 beforeAll(() => {
   initTimezoneService();
@@ -19,7 +20,7 @@ beforeAll(() => {
 describe('refCountriesResource', () => {
   // Happy paths
   it('returns full country record for US', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'US' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.alpha2).toBe('US');
@@ -34,7 +35,7 @@ describe('refCountriesResource', () => {
   });
 
   it('returns full country record for DE (Germany)', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'DE' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.alpha2).toBe('DE');
@@ -46,7 +47,7 @@ describe('refCountriesResource', () => {
   });
 
   it('uppercases lowercase alpha2 input', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'jp' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.alpha2).toBe('JP');
@@ -54,7 +55,7 @@ describe('refCountriesResource', () => {
   });
 
   it('returns capital or empty string for Antarctica', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'AQ' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.alpha2).toBe('AQ');
@@ -65,7 +66,7 @@ describe('refCountriesResource', () => {
   });
 
   it('returns currency array with code, name, and symbol', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'GB' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.currencies.length).toBeGreaterThan(0);
@@ -77,7 +78,7 @@ describe('refCountriesResource', () => {
   });
 
   it('returns language array with code and name', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'FR' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.languages.length).toBeGreaterThan(0);
@@ -89,7 +90,7 @@ describe('refCountriesResource', () => {
 
   // Error paths — resource handler is synchronous, throws directly
   it('throws NotFound for unrecognized alpha2 code', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'XX' });
     let thrown: unknown;
     try {
@@ -102,7 +103,7 @@ describe('refCountriesResource', () => {
   });
 
   it('throws NotFound for a numeric-looking code', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: '99' });
     let thrown: unknown;
     try {
@@ -115,7 +116,7 @@ describe('refCountriesResource', () => {
   });
 
   it('error message mentions the rejected code', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'ZZ' });
     let errorMessage = '';
     try {
@@ -128,7 +129,7 @@ describe('refCountriesResource', () => {
 
   // Edge cases
   it('returns timezones array with at least one entry for US', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'US' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     expect(result.timezones).toBeInstanceOf(Array);
@@ -136,7 +137,7 @@ describe('refCountriesResource', () => {
   });
 
   it('output validates against the declared output schema', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'CA' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     // Should parse cleanly — throws if schema mismatch
@@ -144,7 +145,7 @@ describe('refCountriesResource', () => {
   });
 
   it('calling_codes contains + prefix strings', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const params = refCountriesResource.params!.parse({ alpha2: 'AU' });
     const result = expectSync(refCountriesResource.handler(params, ctx));
     for (const code of result.calling_codes) {
@@ -154,7 +155,7 @@ describe('refCountriesResource', () => {
 
   // Security: injection attempts in the alpha2 parameter should not produce crashes or leak internals
   it('does not crash or leak internals on injection-style input', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     const injectionAttempts = [
       "'; DROP TABLE countries; --",
       '<script>alert(1)</script>',
@@ -175,7 +176,7 @@ describe('refCountriesResource', () => {
   });
 
   it('does not expose environment variable values in error messages', () => {
-    const ctx = createMockContext();
+    const ctx = createMockContext({ errors: refCountriesResource.errors });
     // Use a unique non-existent code that would not match any env var pattern
     const params = refCountriesResource.params!.parse({ alpha2: 'NONEXISTENT_VERY_LONG_CODE' });
     let errorMessage = '';
@@ -188,5 +189,79 @@ describe('refCountriesResource', () => {
     expect(errorMessage).not.toMatch(/stack trace/i);
     // Error message should reference the invalid code, not raw system internals
     expect(errorMessage.length).toBeGreaterThan(0);
+  });
+});
+
+describe('refCountriesResource through resources/read', () => {
+  const read = createResourceReader([refCountriesResource]);
+
+  it('reads a plain alpha-2 code', async () => {
+    const reply = await read('ref://countries/US');
+    expect(reply.error).toBeUndefined();
+    const record = JSON.parse(reply.result?.contents[0]?.text ?? '');
+    expect(record.alpha2).toBe('US');
+    expect(record.name).toBe('United States');
+  });
+
+  it('reads a percent-encoded code as the code it encodes', async () => {
+    const reply = await read('ref://countries/%55%53');
+    expect(reply.error).toBeUndefined();
+    expect(JSON.parse(reply.result?.contents[0]?.text ?? '').alpha2).toBe('US');
+  });
+
+  it('decodes a double-encoded code once, to a literal escape that is not found', async () => {
+    const reply = await read('ref://countries/%2555%2553');
+    expect(reply.error?.code).toBe(JsonRpcErrorCode.NotFound);
+    expect(reply.error?.message).toBe(
+      'Country "%55%53" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").',
+    );
+    expect(reply.error?.data).toMatchObject({ alpha2: '%55%53' });
+  });
+
+  it('refuses a malformed percent escape as a params rejection naming the variable', async () => {
+    const reply = await read('ref://countries/%E0%A4%A');
+    expect(reply.error?.code).toBe(JsonRpcErrorCode.ValidationError);
+    expect(reply.error?.message).toContain('Invalid percent-encoding');
+    expect(reply.error?.data?.issues).toEqual([expect.objectContaining({ path: ['alpha2'] })]);
+  });
+
+  it('carries the country_not_found reason and its recovery hint', async () => {
+    const reply = await read('ref://countries/XX');
+    expect(reply.error?.data?.reason).toBe('country_not_found');
+    expect(reply.error?.data?.recovery).toEqual({
+      hint: 'Use an ISO 3166-1 alpha-2 code, or find it by country name with ref_geo_lookup.',
+    });
+  });
+
+  it('logs an unknown code at notice, not error', async () => {
+    const logs = watchResourceFailureLogs();
+    try {
+      await read('ref://countries/XX');
+      expect(logs.records()).toEqual([
+        {
+          level: 'notice',
+          message:
+            'Error in resource:ref-country: Country "XX" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").',
+        },
+      ]);
+    } finally {
+      logs.restore();
+    }
+  });
+
+  it('answers an unknown code as not found with the code in data', async () => {
+    const reply = await read('ref://countries/XX');
+    expect(reply.error?.code).toBe(JsonRpcErrorCode.NotFound);
+    expect(reply.error?.message).toBe(
+      'Country "XX" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").',
+    );
+    expect(reply.error?.data).toMatchObject({ alpha2: 'XX' });
+    expect(typeof reply.error?.data?.requestId).toBe('string');
+  });
+
+  it('answers an empty parameter with the resource-not-found shape', async () => {
+    const reply = await read('ref://countries/');
+    expect(reply.error?.code).toBe(JsonRpcErrorCode.InvalidParams);
+    expect(reply.error?.data).toEqual({ uri: 'ref://countries/' });
   });
 });

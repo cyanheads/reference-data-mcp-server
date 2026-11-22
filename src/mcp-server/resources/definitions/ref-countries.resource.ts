@@ -4,7 +4,7 @@
  */
 
 import { resource, z } from '@cyanheads/mcp-ts-core';
-import { notFound } from '@cyanheads/mcp-ts-core/errors';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getGeoService } from '@/services/geo/geo-service.js';
 
 export const refCountriesResource = resource('ref://countries/{alpha2}', {
@@ -61,10 +61,21 @@ export const refCountriesResource = resource('ref://countries/{alpha2}', {
     timezones: z.array(z.string()).describe('IANA timezone IDs observed in this country.'),
   }),
 
-  handler(params) {
+  errors: [
+    {
+      reason: 'country_not_found',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'No country has the requested ISO 3166-1 alpha-2 code.',
+      recovery: 'Use an ISO 3166-1 alpha-2 code, or find it by country name with ref_geo_lookup.',
+      severity: 'notice',
+    },
+  ],
+
+  handler(params, ctx) {
     const record = getGeoService().lookupByAlpha2(params.alpha2.toUpperCase());
     if (!record) {
-      throw notFound(
+      throw ctx.fail(
+        'country_not_found',
         `Country "${params.alpha2}" not found. Use a valid ISO 3166-1 alpha-2 code (e.g., "US", "DE").`,
         { alpha2: params.alpha2 },
       );
