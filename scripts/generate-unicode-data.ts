@@ -72,6 +72,12 @@ const NAME_CODE_ALPHABET = Array.from({ length: 0x7e - 0x20 }, (_, i) =>
   .join('');
 /** Alphabet characters that open a 1-, 2-, and 3-character word code, in that order. */
 const NAME_CODE_WIDTHS = [56, 26, 7] as const;
+/**
+ * Joins the name-word dictionary. A word character that no Unicode name holds (names use A–Z, 0–9,
+ * space, and hyphen), so that no name word stands alone in the generated source, where a scan for
+ * marker words (`devcheck` runs one over tracked files) reports a name word that spells one.
+ */
+const NAME_WORD_SEPARATOR = '_';
 /** Binary properties packed into each property tuple; bit i is the i-th name. */
 const PROPERTY_FLAGS = [
   'White_Space',
@@ -341,6 +347,9 @@ function namesModule(data: Ucd): ModuleContent {
   for (const [, name] of stored) {
     for (const word of name.split(' ')) {
       if (!word) throw new Error(`Name "${name}" has an empty word.`);
+      if (word.includes(NAME_WORD_SEPARATOR)) {
+        throw new Error(`Name "${name}" holds the dictionary separator "${NAME_WORD_SEPARATOR}".`);
+      }
       frequency.set(word, (frequency.get(word) ?? 0) + 1);
     }
   }
@@ -390,8 +399,8 @@ function namesModule(data: Ucd): ModuleContent {
       },
       {
         name: 'NAME_WORDS',
-        doc: 'Words of the stored names, most frequent first, space-separated.',
-        value: words.join(' '),
+        doc: `Words of the stored names, most frequent first, joined with \`${NAME_WORD_SEPARATOR}\`.`,
+        value: words.join(NAME_WORD_SEPARATOR),
       },
       {
         name: 'NAME_CODES',

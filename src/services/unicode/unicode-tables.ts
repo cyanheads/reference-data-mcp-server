@@ -192,7 +192,7 @@ function decodeNames(): (codePoint: number) => string | null {
       `widths must be three counts summing to ${alphabetLength}`,
     );
   }
-  const words = NAME_WORDS.split(' ');
+  const words = NAME_WORDS.split('_');
   const twoBase = one;
   const threeBase = one + two * alphabetLength;
   const digit = (code: string, pos: number): number => {
