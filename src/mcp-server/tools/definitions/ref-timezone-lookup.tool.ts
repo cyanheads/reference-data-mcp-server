@@ -31,20 +31,20 @@ const TimezoneRecordSchema = z.object({
 export const refTimezoneLookup = tool('ref_timezone_lookup', {
   title: 'Timezone Lookup',
   description:
-    'Get timezone info by IANA ID, country code, or partial city/region name. Returns current UTC offset, standard offset, whether DST is currently active, and major cities in the timezone. When querying by country code (ISO alpha-2), returns all timezones observed in that country. Accepts partial matches — "Tokyo" resolves to "Asia/Tokyo", "NY" resolves to "America/New_York".',
+    'Get timezone info by IANA ID, country code, or partial city/region name. Returns current UTC offset, standard offset, whether DST is currently active, and major cities in the timezone. When querying by country code (ISO alpha-2), returns all timezones observed in that country. Accepts partial matches and IANA location names written with spaces — "Tokyo" resolves to "Asia/Tokyo", "New York" resolves to "America/New_York".',
   annotations: { readOnlyHint: true, openWorldHint: false },
 
   input: z.object({
     query: z
       .string()
       .describe(
-        'IANA timezone ID (e.g., "America/New_York"), ISO alpha-2 country code (e.g., "US"), or partial city/region name (e.g., "Tokyo", "London").',
+        'IANA timezone ID (e.g., "America/New_York"), ISO alpha-2 country code (e.g., "US"), or partial city/region name (e.g., "Tokyo", "London"). IANA location names also match when written with spaces (e.g., "New York", "St Lucia").',
       ),
     by: z
       .enum(['iana', 'country', 'auto'])
       .default('auto')
       .describe(
-        'Lookup mode: iana for exact IANA ID, country for ISO alpha-2 code, auto tries all strategies.',
+        'Lookup mode: auto tries a two-letter country code first, then IANA ID, city, and location-name matching; iana runs that matching without the country-code step; country matches an ISO alpha-2 code only.',
       ),
     at: z
       .string()

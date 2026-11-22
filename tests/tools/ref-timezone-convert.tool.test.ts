@@ -61,6 +61,44 @@ describe('refTimezoneConvert', () => {
     expect(result.utc_equivalent).toBeTruthy();
   });
 
+  it('resolves a city name on both sides (control for the location-name step)', async () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2026-05-24T15:30:00',
+      from_tz: 'Tokyo',
+      to_tz: 'Los Angeles',
+    });
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.source.tz).toBe('Asia/Tokyo');
+    expect(result.target.tz).toBe('America/Los_Angeles');
+    expect(result.target.datetime).toBe('2026-05-23T23:30:00');
+  });
+
+  it('resolves a location name written with spaces as to_tz (#42)', async () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2026-05-24T15:30:00',
+      from_tz: 'Tokyo',
+      to_tz: 'New York',
+    });
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.target.tz).toBe('America/New_York');
+    expect(result.target.offset).toBe('-04:00');
+    expect(result.target.datetime).toBe('2026-05-24T02:30:00');
+  });
+
+  it('resolves a location name written with spaces as from_tz (#42)', async () => {
+    const ctx = createMockContext({ errors: refTimezoneConvert.errors });
+    const input = refTimezoneConvert.input.parse({
+      datetime: '2026-05-24T02:30:00',
+      from_tz: 'New York',
+      to_tz: 'UTC',
+    });
+    const result = await refTimezoneConvert.handler(input, ctx);
+    expect(result.source.tz).toBe('America/New_York');
+    expect(result.utc_equivalent).toBe('2026-05-24T06:30:00Z');
+  });
+
   it('throws for unrecognized from_tz', async () => {
     const ctx = createMockContext({ errors: refTimezoneConvert.errors });
     const input = refTimezoneConvert.input.parse({

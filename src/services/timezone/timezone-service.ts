@@ -93,6 +93,22 @@ function getIntlAbbreviation(ianaId: string, at?: Date): string | null {
   }
 }
 
+/** Lowercase and drop diacritics through NFD decomposition: "Košice" → "kosice", "İzmir" → "izmir". */
+function stripMarks(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+/**
+ * Location-name key for unaccented text: drop `.` and apostrophes, collapse runs of `_`, `-`,
+ * and whitespace to one space, trim. "St. Lucia", "St_Lucia", and " st  lucia " share "st lucia".
+ */
+function foldSeparators(s: string): string {
+  return s
+    .replace(/[.'’‘]/g, '')
+    .replace(/[_\-\s]+/g, ' ')
+    .trim();
+}
+
 /** Check if DST is active by comparing current offset to standard (January) offset */
 function isDstActive(
   ianaId: string,
@@ -119,6 +135,8 @@ export class TimezoneService {
   > = new Map();
   private readonly byCountry: Map<string, string[]> = new Map();
   private readonly byCity: Map<string, string> = new Map(); // lowercase city name → IANA id
+  /** Folded last segment of each multi-segment, non-Etc ID → that ID ("new york" → America/New_York). */
+  private readonly byLocation: Map<string, string> = new Map();
   private readonly allIanaIds: string[];
 
   constructor() {
@@ -140,27 +158,35 @@ export class TimezoneService {
       existing.push(name);
       this.byCountry.set(countryCode, existing);
 
-      // City → iana id
+      // City → iana id, under the spelling as listed and its unaccented spelling
       for (const city of mainCities) {
-        this.byCity.set(city.toLowerCase(), name);
-        // Also store simplified versions (remove diacritics approximation)
-        const simplified = city
-          .toLowerCase()
-          .replace(/[àáâãäå]/g, 'a')
-          .replace(/[èéêë]/g, 'e')
-          .replace(/[ìíîï]/g, 'i')
-          .replace(/[òóôõö]/g, 'o')
-          .replace(/[ùúûü]/g, 'u')
-          .replace(/[ñ]/g, 'n')
-          .replace(/[ç]/g, 'c');
-        if (simplified !== city.toLowerCase()) {
-          this.byCity.set(simplified, name);
-        }
+        const key = city.toLowerCase();
+        this.byCity.set(key, name);
+        const unaccented = stripMarks(key);
+        if (unaccented !== key) this.byCity.set(unaccented, name);
       }
     }
 
     // All IANA IDs from the runtime (superset of tzdb entries)
     this.allIanaIds = Intl.supportedValuesOf('timeZone');
+
+    /**
+     * Location names: the last segment of every multi-segment ID outside Etc/. tzdb names join
+     * the runtime list because it carries legacy IDs (Asia/Calcutta, not Asia/Kolkata). A key
+     * naming two IDs is dropped (on both runtimes only "buenos aires": America/Buenos_Aires and
+     * America/Argentina/Buenos_Aires), so this step never picks between IDs. An ID listed in
+     * both sources is one candidate; the lists are not merged into a Set because hashing the
+     * runtime's ID strings makes every later split() over them slower on Node.
+     */
+    const ambiguous = new Set<string>();
+    for (const id of [...this.allIanaIds, ...this.byIana.keys()]) {
+      if (!id.includes('/') || id.startsWith('Etc/')) continue;
+      const key = foldSeparators(stripMarks(id.slice(id.lastIndexOf('/') + 1)));
+      const existing = this.byLocation.get(key);
+      if (existing === undefined) this.byLocation.set(key, id);
+      else if (existing !== id) ambiguous.add(key);
+    }
+    for (const key of ambiguous) this.byLocation.delete(key);
   }
 
   /** Check whether an IANA ID is valid by attempting to use it with Intl */
@@ -244,7 +270,7 @@ export class TimezoneService {
     return this.byCountry.get(countryCode.toUpperCase()) ?? [];
   }
 
-  /** Resolve a query to an IANA timezone ID, or throw */
+  /** Resolve a query to an IANA timezone ID, or null when no step matches */
   private resolveIanaId(query: string): string | null {
     // Reject empty or whitespace-only strings — startsWith('') matches everything
     if (!query.trim()) return null;
@@ -281,7 +307,13 @@ export class TimezoneService {
     });
     if (partialIana) return partialIana;
 
-    return null;
+    /**
+     * Last, so every query an earlier step resolves keeps its answer: a city spelled with
+     * different accents ("łodź"), then an exact location name written with spaces, hyphens,
+     * or periods ("New York", "St. Lucia", "Port au Prince"). No prefix matching here.
+     */
+    const unaccented = stripMarks(query);
+    return this.byCity.get(unaccented) ?? this.byLocation.get(foldSeparators(unaccented)) ?? null;
   }
 
   buildRecord(ianaId: string, at?: Date): TimezoneRecord {
