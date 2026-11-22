@@ -125,7 +125,7 @@ ENV NODE_ENV=production
 # OCI image metadata (https://github.com/opencontainers/image-spec/blob/main/annotations.md)
 ARG APP_VERSION
 LABEL org.opencontainers.image.title="reference-data-mcp-server"
-LABEL org.opencontainers.image.description="Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP."
+LABEL org.opencontainers.image.description="Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, MIME types, and Unicode characters via MCP."
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.version="${APP_VERSION}"
 LABEL org.opencontainers.image.source="https://github.com/cyanheads/reference-data-mcp-server"
@@ -138,6 +138,10 @@ COPY --from=deps /usr/src/app/node_modules ./node_modules
 # Copy the compiled application code from the build stage
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/skills ./skills
+
+# dist/data/unicode/ is derived from the Unicode Character Database, whose
+# license asks that its notice travel with copies of the data.
+COPY LICENSE NOTICE ./
 
 # Mirror CLI (MirrorService adopters only — Tier 3, opt-in):
 # Copy your mirror lifecycle scripts and emit a runtime tsconfig so Bun resolves

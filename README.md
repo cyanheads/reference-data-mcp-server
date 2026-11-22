@@ -1,7 +1,7 @@
 <div align="center">
   <h1>@cyanheads/reference-data-mcp-server</h1>
-  <p><b>Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types via MCP. STDIO or Streamable HTTP.</b>
-  <div>10 Tools • 3 Reference Resource Families • 1 Agent Skill</div>
+  <p><b>Look up countries, timezones, periodic table elements, physical constants, units, HTTP status codes, MIME types, and Unicode characters via MCP. STDIO or Streamable HTTP.</b>
+  <div>11 Tools • 3 Reference Resource Families • 1 Agent Skill</div>
   </p>
 </div>
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-Countries, timezones, periodic table elements, physical constants, units, HTTP status codes, and MIME types in one place. Look up, search, and convert across all of them, entirely offline with no API keys or rate limits.
+Countries, timezones, periodic table elements, physical constants, units, HTTP status codes, MIME types, and Unicode characters in one place. Look up, search, and convert across all of them, entirely offline with no API keys or rate limits.
 
 ### Tools
 
@@ -45,6 +45,7 @@ Countries, timezones, periodic table elements, physical constants, units, HTTP s
 | `ref_unit_convert` | Convert a numeric value between compatible units of measure. |
 | `ref_http_status` | Look up an HTTP status code by number or keyword. |
 | `ref_mime_type` | Look up a MIME type by type string or file extension. |
+| `ref_unicode_lookup` | Identify every code point in a string, or look up code points by U+XXXX or decimal number. |
 
 ### Resources
 
@@ -55,7 +56,7 @@ Countries, timezones, periodic table elements, physical constants, units, HTTP s
 | `ref://timezones/{iana_id}` | Timezone info by IANA ID (slashes percent-encoded as `%2F`). |
 | `skill://reference-data-guide/SKILL.md` | Agent guide for resolving locations and converting meeting times across DST transitions. |
 
-The three reference families use four URI template routes: countries, elements, encoded timezone IDs, and an unencoded-timezone-slash route that returns retry guidance. The guide is a separate skill resource.
+The three reference families use four URI template routes: countries, elements, encoded timezone IDs, and an unencoded-timezone-slash route that returns retry guidance. Each template variable is percent-decoded once before lookup, so `ref://countries/%55%53` reads `US`; a malformed escape is rejected as a validation error. The guide is a separate skill resource.
 
 Reference data is also reachable via tools — use `ref_geo_lookup`, `ref_element_lookup`, and `ref_timezone_lookup` when you need flexible query modes or country search.
 
@@ -83,7 +84,8 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 
 ### `ref_timezone_lookup` <sub>tool</sub>
 
-- Lookup modes: `auto` (IANA ID → country code → city name), `iana`, `country`; partial city matching ("Tokyo" → "Asia/Tokyo", "NY" → "America/New_York")
+- Lookup modes: `auto` (two-letter country code, then IANA ID, city name, and location name), `iana` (the same matching without the country-code step), `country` (ISO alpha-2 code only)
+- Partial city matching ("Tokyo" → "Asia/Tokyo"); location names written with spaces resolve ("New York" → "America/New_York", "St Lucia"), and unaccented spellings of accented cities match (`Izmir`, `Kosice`)
 - Country-code queries return every timezone observed in that country
 - Optional `at` (ISO 8601) evaluates DST state at a specific moment instead of now; malformed values raise `invalid_at`
 - Returns current/standard UTC offsets, DST status and abbreviations, major cities, and country codes
@@ -126,7 +128,8 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 
 - 11 measurement domains: length, mass, volume, temperature (non-linear C/F/K/R), speed, pressure, energy, power, frequency, digital storage, angle
 - Mass `mt` is the metric tonne (1000 kg); `t` is the US short ton (907.18 kg) — distinct units, easily confused
-- Typed errors: `incompatible_units` (mismatched quantities), `unknown_unit` (unrecognized abbreviation), `below_absolute_zero` (with the Kelvin equivalent)
+- Speed accepts `mph` and `mi/h` for mile per hour (the library's own spelling is `m/h`) and `kph` for `km/h`; `from_unit` and `to_unit` echo the spelling the caller sent
+- Typed errors: `incompatible_units` (mismatched quantities), `unknown_unit` (unrecognized abbreviation), `below_absolute_zero` (with the Kelvin equivalent), `result_out_of_range` (a converted result larger in magnitude than a double holds)
 
 ---
 
@@ -145,24 +148,37 @@ The [reference-data guide](./skills/reference-data-guide/SKILL.md) is included i
 
 ---
 
+### `ref_unicode_lookup` <sub>tool</sub>
+
+- Reads `query` by `by`: `auto` (code point notation when every token is `U+` followed by hex digits, otherwise literal text), `text`, `code_point` (`U+XXXX`, `0xXXXX`, `\u{XXXX}`, or bare hex, space- or comma-separated), or `decimal`; a query that looks like a code point number but was read as text (`8203`, `0x200B`, `&#x200B;`) adds a notice naming how to look it up as a code point
+- Pass `by: "text"` for any text the caller did not write itself: `auto` reads text made only of `U+` tokens as the code points they name, so a string that happens to read `U+202E` is reported as that bidi override, not as its six characters (`interpreted_as` reports the reading used)
+- Each code point returns its Unicode name (or code point label and aliases), general category, code point type, block, script, whitespace/default-ignorable/bidi-control/invisible flags, UTF-8 and UTF-16 encodings, NFC/NFD/NFKC/NFKD forms, and its grapheme cluster index
+- `summary` describes the whole input: code point and grapheme cluster counts, UTF-16 and UTF-8 lengths, `well_formed`, and the `invisible_indices` and `bidi_control_indices` of every hidden character
+- `query` holds up to 4,096 code points; paging is by code point: `limit` default 32, a value above 128 returns 128 with a notice, and `truncated` and `next_offset` continue from the next code point
+- Display safety: `char` is null for code points that do not display safely (controls, format and bidi controls, separators, combining marks, spaces, default-ignorable, private-use, surrogate, noncharacter, reserved), and the text output shows `\u{XXXX}` for them
+- A malformed token, an empty token list, or a value above U+10FFFF raises `invalid_code_point`; `U+0041,` reads as U+0041 in `auto`, while a `U+` token with more than 6 hex digits fails
+
+---
+
 ### `ref://countries/{alpha2}` <sub>resource</sub>
 
 - Full country record as `application/json` — same fields as `ref_geo_lookup`
-- `alpha2` accepts either case; an unmatched code returns a `notFound` error
+- `alpha2` accepts either case; an unmatched code returns `country_not_found`
 
 ---
 
 ### `ref://elements/{number}` <sub>resource</sub>
 
 - Full element record as `application/json` — same fields as `ref_element_lookup`
-- `number` must be an integer string 1–118; out-of-range or unmatched values return `notFound`
+- `number` must be an integer string 1–118; out-of-range or unmatched values return `invalid_atomic_number`
 
 ---
 
 ### `ref://timezones/{iana_id}` <sub>resource</sub>
 
 - Timezone record as `application/json` — same fields as `ref_timezone_lookup`, plus `evaluated_at`
-- Slashes in the IANA ID must be percent-encoded as `%2F` (e.g. `America%2FNew_York`); an unencoded slash matches a separate catch-all that returns an actionable error with the correctly encoded URI
+- Slashes in the IANA ID must be percent-encoded as `%2F` (e.g. `America%2FNew_York`); an unencoded slash matches a separate catch-all that returns `unencoded_slash` with the correctly encoded URI
+- An ID the runtime does not recognize returns `invalid_timezone`; a valid IANA alias the timezone dataset does not carry (e.g. `US%2FEastern`) returns `no_timezone_data`
 
 ---
 
@@ -174,11 +190,11 @@ Reference-data-specific:
 
 - Entirely in-memory — all datasets load at startup; no runtime network calls, no API keys, no rate limits
 - Works offline and in air-gapped environments
-- Seven specialized services: geo (countries-list), timezone (Node.js Intl + @vvo/tzdb), elements (PubChem/IUPAC 2024, 118 elements), constants (CODATA 2022, 32 entries), units (convert-units), HTTP status (IANA registry), MIME types (mime-db, ~1,000 types)
+- Eight specialized services: geo (countries-list), timezone (Node.js Intl + @vvo/tzdb), elements (PubChem/IUPAC 2024, 118 elements), constants (CODATA 2022, 32 entries), units (convert-units), HTTP status (IANA registry), MIME types (mime-db, ~1,000 types), unicode (Unicode Character Database 18.0.0, bundled)
 
 Agent-friendly output:
 
-- Structured error contracts on every tool — typed `reason` codes (`no_match`, `no_filters`, `unknown_unit`, `incompatible_units`, `below_absolute_zero`, `invalid_timezone`, `invalid_datetime`, `invalid_at`) with actionable recovery hints
+- Structured error contracts on every tool and resource — typed `reason` codes (`no_match`, `no_filters`, `unknown_unit`, `incompatible_units`, `below_absolute_zero`, `result_out_of_range`, `invalid_timezone`, `invalid_datetime`, `invalid_at`, `invalid_code_point`, `country_not_found`, `invalid_atomic_number`, `no_timezone_data`, `unencoded_slash`) with actionable recovery hints
 - Discriminated outputs where relevant — `truncated` flag on search results, `alternatives` arrays on MIME/HTTP keyword matches, `atomic_mass_estimated` flag on element data, `match_strategy` on constant lookups
 - Consistent `null` for genuinely unknown or inapplicable values rather than absent fields
 
@@ -288,7 +304,7 @@ MCP_TRANSPORT_TYPE=http MCP_HTTP_PORT=3010 bun run start:http
 
 ### Prerequisites
 
-- [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
+- [Bun v1.4.4](https://bun.sh/) or higher (or Node.js v24+).
 - No API keys required — this server is entirely self-contained.
 
 ### Installation
@@ -375,10 +391,10 @@ The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `
 | Directory | Purpose |
 |:----------|:--------|
 | `src/index.ts` | `createApp()` entry point — registers tools/resources and inits services. |
-| `src/data/` | Static datasets (periodic table, physical constants, HTTP status codes). |
+| `src/data/` | Static datasets (periodic table, physical constants, HTTP status codes, generated Unicode Character Database modules). |
 | `src/mcp-server/tools/` | Tool definitions (`*.tool.ts`). |
 | `src/mcp-server/resources/` | Resource definitions (`*.resource.ts`). |
-| `src/services/` | Domain service integrations (geo, timezone, elements, constants, units, http-status, mime). |
+| `src/services/` | Domain service integrations (geo, timezone, elements, constants, units, http-status, mime, unicode). |
 | `tests/` | Unit tests mirroring `src/`. |
 | `docs/` | Generated docs (tree.md, design.md). |
 | `changelog/` | Per-version changelog files. |
@@ -410,3 +426,5 @@ bun run test
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE) for details.
+
+The bundled Unicode Character Database data is © Unicode, Inc. and licensed under the [Unicode License V3](https://www.unicode.org/license.txt); the license text is in [NOTICE](NOTICE).

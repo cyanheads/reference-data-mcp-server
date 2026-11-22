@@ -2,8 +2,8 @@
 
 **Server:** reference-data-mcp-server
 **Version:** 0.2.0
-**Framework:** [@cyanheads/mcp-ts-core](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) `^0.13.18`
-**Engines:** Bun ≥1.4.0, Node ≥24.0.0
+**Framework:** [@cyanheads/mcp-ts-core](https://www.npmjs.com/package/@cyanheads/mcp-ts-core) `^0.13.22`
+**Engines:** Bun ≥1.4.4, Node ≥24.0.0
 **MCP SDK:** `@modelcontextprotocol/server` ^2.4.0
 **Zod:** ^4.6.7
 
@@ -81,7 +81,7 @@ export const refGeoLookup = tool('ref_geo_lookup', {
 
 ```ts
 import { resource, z } from '@cyanheads/mcp-ts-core';
-import { notFound } from '@cyanheads/mcp-ts-core/errors';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getGeoService } from '@/services/geo/geo-service.js';
 
 export const refCountriesResource = resource('ref://countries/{alpha2}', {
@@ -89,13 +89,26 @@ export const refCountriesResource = resource('ref://countries/{alpha2}', {
   description: 'Full country record by ISO alpha-2 code.',
   mimeType: 'application/json',
   params: z.object({ alpha2: z.string().describe('ISO 3166-1 alpha-2 country code.') }),
-  handler(params) {
+  errors: [
+    {
+      reason: 'country_not_found',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'No country has the requested ISO 3166-1 alpha-2 code.',
+      recovery: 'Use an ISO 3166-1 alpha-2 code, or find it by country name with ref_geo_lookup.',
+      severity: 'notice',
+    },
+  ],
+  handler(params, ctx) {
     const record = getGeoService().lookupByAlpha2(params.alpha2.toUpperCase());
-    if (!record) throw notFound(`Country "${params.alpha2}" not found.`, { alpha2: params.alpha2 });
+    if (!record) {
+      throw ctx.fail('country_not_found', `Country "${params.alpha2}" not found.`, { alpha2: params.alpha2 });
+    }
     return record;
   },
 });
 ```
+
+`createApp({ decodeResourceParams: true })` in `src/index.ts` percent-decodes each template variable once before `params` validation, so a handler receives the decoded value and never decodes it again.
 
 ### Server identity and instructions
 
@@ -204,6 +217,7 @@ src/
     http-status-codes.ts                # IANA HTTP status code registry data
     periodic-table.ts                   # PubChem/IUPAC 2024 element dataset
     physical-constants.ts               # CODATA 2022 physical constants dataset
+    unicode/                            # Generated Unicode Character Database 18.0.0 modules (names, properties, normalization) — `bun run generate:unicode`
   services/
     constants/
       constants-service.ts              # Physical constants lookup (CODATA 2022)
@@ -220,11 +234,17 @@ src/
     timezone/
       timezone-service.ts               # IANA timezone lookup and conversion (Intl + @vvo/tzdb)
       types.ts
+    unicode/
+      unicode-service.ts                # Code point inspection: parsing, paging, summary
+      unicode-tables.ts                 # Decodes the generated data modules into lookup tables
+      grapheme-clusters.ts              # UAX #29 grapheme cluster segmentation
+      display-escape.ts                 # Display-safe characters and \u{XXXX} escapes
+      types.ts
     units/
       units-service.ts                  # Unit conversion (convert-units)
   mcp-server/
     tools/definitions/
-      [tool-name].tool.ts               # Tool definitions (10 tools)
+      [tool-name].tool.ts               # Tool definitions (11 tools)
     resources/definitions/
       [resource-name].resource.ts       # Resource definitions (4 resources)
   types/
@@ -317,7 +337,7 @@ When you complete a skill's checklist, check the boxes and add a completion time
 | `bun run audit:fix` | `bun audit fix` — upgrade vulnerable packages to the lowest safe version within existing ranges (`--dry-run` previews, `--latest` rewrites ranges). First response when `devcheck` flags a transitive advisory; then `bun update <name>`, then `bun dedupe` |
 | `bun run audit:refresh` | Delete `bun.lock` and reinstall. Last resort after `audit:fix`, `bun update <name>`, and `bun dedupe` — re-resolves every ranged dep (the framework pin included) and rewrites the lockfile as `lockfileVersion: 2` |
 | `bun run lint:mcp` | Run the MCP definition linter standalone (rule catalog: `api-linter` skill) |
-| `bun run lint:packaging` | Packaging surface checks — env-var parity, `.mcpbignore` coverage, plugin manifests, published skills (run by devcheck) |
+| `bun run lint:packaging` | Packaging surface checks — `server.json`/`manifest.json` env-var parity, `.mcpbignore` coverage, plugin manifests, the published `skills/` tree (run by devcheck) |
 | `bun run list-skills` | Print the skill registry |
 | `bun run tree` | Generate directory structure doc |
 | `bun run format` | Auto-fix formatting (safe fixes only) |
@@ -328,6 +348,7 @@ When you complete a skill's checklist, check the boxes and add a completion time
 | `bun run changelog:build` | Regenerate `CHANGELOG.md` from `changelog/*.md` |
 | `bun run changelog:check` | Verify `CHANGELOG.md` is in sync (used by devcheck) |
 | `bun run bundle` | Build, pack, and clean a `.mcpb` for one-click Claude Desktop install |
+| `bun run generate:unicode` | Regenerate `src/data/unicode/` and the grapheme-break test fixture from the Unicode Character Database version set in `scripts/generate-unicode-data.ts`; downloads sources into `.cache/` when missing and verifies the decoders against them |
 
 **CI is one file.** `.github/workflows/codeql.yml` (scaffolded) is the only GitHub Actions workflow: CodeQL is GitHub-owned end to end, and the file runs only while the repo's CodeQL *default setup* is turned off. Verification — `devcheck`, tests, the release gates — runs locally; don't add a workflow that re-runs it.
 
@@ -335,7 +356,7 @@ When you complete a skill's checklist, check the boxes and add a completion time
 
 ## Bundling
 
-`bun run bundle` produces a `.mcpb` extension bundle for one-click install in Claude Desktop. `mcpb pack` reads `.mcpbignore`, not `.gitignore`, so every root path the bundle must not ship — source, tests, docs, caches, logs, agent docs, plugin manifests, gitignored local files — needs a root-anchored line there (`/docs/`, never `docs/`, which also strips `node_modules/*/docs/`); `lint:packaging` names each missing or unanchored line. Root `skills/` ships on purpose. The pack step is followed by `scripts/clean-mcpb.ts`, which prunes dev dependencies (`mcpb clean`) and strips four classes of `node_modules/**` content that root-anchored `.mcpbignore` patterns cannot reach: dependency-shipped agent docs (`framework-skills/`, `skills/`, `.claude/`, `.agents/`, `SKILL.md`); platform-specific native bindings, which would otherwise lock the bundle to the platform it was packed on; node-gyp build output beside a `binding.gyp` (`config.gypi`, Makefiles, `obj.target/`, `.deps/`, object files and debug symbols), which records the packing machine's paths — compiled `*.node` addons stay; and build-only package files — the framework's `changelog/`, `scripts/`, `templates/`, `CLAUDE.md`, `AGENTS.md`, and config bases (`biome.json`, `vitest.config.base.mjs`, `config/tsconfig.base.json`), and `better-sqlite3`'s `deps/` and `src/` C sources. A server using DataCanvas therefore ships a portable bundle without the DuckDB native — `@duckdb/node-api` is an optional peer loaded lazily, so canvas tools report an actionable install hint and every other tool works normally. MCPB is stdio-only — HTTP and Cloudflare Workers deployments are unaffected. Consumers who don't need it can delete `manifest.json` and `.mcpbignore`; `lint:packaging` skips cleanly.
+`bun run bundle` produces a `.mcpb` extension bundle for one-click install in Claude Desktop. `mcpb pack` reads `.mcpbignore`, not `.gitignore`, so every root path the bundle must not ship — source, tests, docs, caches, logs, agent docs, plugin manifests, gitignored local files — needs a root-anchored line there (`/docs/`, never `docs/`, which also strips `node_modules/*/docs/`); `lint:packaging` names each missing or unanchored line. Root `skills/` ships on purpose. The pack step is followed by `scripts/clean-mcpb.ts`, which prunes dev dependencies (`mcpb clean`) and strips four classes of `node_modules/**` content that root-anchored `.mcpbignore` patterns cannot reach: dependency-shipped agent docs — `framework-skills/`, `skills/`, `.claude/`, `.agents/`, `AGENTS.md`, and `CLAUDE.md` at a package's root, and `SKILL.md` anywhere (a `skills/` deeper in a package is runtime code and stays); platform-specific native bindings, which would otherwise lock the bundle to the platform it was packed on; node-gyp build output beside a `binding.gyp` (`config.gypi`, Makefiles, `obj.target/`, `.deps/`, object files and debug symbols), which records the packing machine's paths — compiled `*.node` addons stay; and build-only package files — the framework's `changelog/`, `scripts/`, `templates/`, and config bases (`biome.json`, `vitest.config.base.mjs`, `config/tsconfig.base.json`), and `better-sqlite3`'s `deps/` and `src/` C sources. A server using DataCanvas therefore ships a portable bundle without the DuckDB native — `@duckdb/node-api` is an optional peer loaded lazily, so canvas tools report an actionable install hint and every other tool works normally. MCPB is stdio-only — HTTP and Cloudflare Workers deployments are unaffected. Consumers who don't need it can delete `manifest.json` and `.mcpbignore`; `lint:packaging` skips cleanly.
 
 **Adding an env var requires both files:** `server.json` (registry discovery, `environmentVariables[]`) and `manifest.json` (bundle install UX, `mcp_config.env` + `user_config`). `lint:packaging` (run by `devcheck`) verifies the env var names match, that every `user_config` option is wired into `mcp_config.env` as `"X": "${user_config.X}"` (the host substitutes nothing else — `"${X}"` reaches the server as that literal string), and that an optional string option carries `"default": ""`.
 
